@@ -115,6 +115,21 @@ class SeqClassifier:
 
         return out
 
+    def get_species(self, seq_record,
+                    blast_path = 'test/data/imgt/blast_fasta/', locus = "IG"):
+        with tempfile.NamedTemporaryFile(mode="w") as temp_out:
+            if not seq_record.seq:
+                return False
+            SeqIO.write(seq_record, temp_out.name, "fasta")
+            path = os.path.join(blast_path, f'{locus}V.fasta')
+            subprocess.call(f'blastp -query {temp_out.name} -db {path} -evalue 1e-6 -num_threads 4 -out {temp_out.name}blast.txt -outfmt 6', shell =
+                            True)
+            output = pd.read_csv(f'{temp_out.name}blast.txt', sep = '\t')
+            output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
+            output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
+            top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()]).sort_values('bitscore', ascending = False).iloc[0]['species']
+            return top_species
+
     def run_hmmscan(self, seq_record, hmm_out):
         """Runs hmmscan from the HMMER3 software suite
 
@@ -685,6 +700,7 @@ class SeqClassifier:
             else:
                 if score < 0:
                     score = 0
+
                 return (receptor, chain_type, score, species)
 
     def gen_classify(self, seq, seq_id):

@@ -8,6 +8,7 @@ import sys
 import time
 import os, sys
 from subprocess import Popen, PIPE
+import subprocess
 from Bio import SeqIO
 import yaml
 
@@ -19,7 +20,6 @@ species_translations = {"Homo_sapiens": "human",
                     "Sus_scrofa": "pig",
                     "Vicugna_pacos": "alpaca",
                     "Bos_taurus": "cow"}
-
 
 
 class DataDownloader():
@@ -156,8 +156,39 @@ class IG_TR_Database():
         anarci_processing_module = ANARCI_Processing()
         anarci_processing_module.run_process()
 
+    # def remove_duplicates(self, fasta_file):
+    #     entries = {}
+    #     for record in SeqIO.parse(fasta_file, 'fasta'):
+    #         group = record.description.split('|')[1]
+    #         if group not in entries:
+    #             entries[group] = []
+    #         entries[group].append(record.description)
+    #     entries_singleton = {p:max(entries[p], key = lambda x:int(x.split('|')[11].split(' AA')[0])) for p in entries}
+    #     sequence_dict = dict((p.description, p.seq) for p in SeqIO.parse(fasta_file, 'fasta'))
+
+    def remove_duplicates(self, fasta_file):
+        sequence_dict = dict((p.description, str(p.seq)) for p in SeqIO.parse(fasta_file, 'fasta'))
+        with open(fasta_file, 'w') as k:
+            for seq in sequence_dict:
+                k.write('>'+seq+'\n'+sequence_dict[seq]+'\n')
+
+    def has_ig(self, fasta_file):
+        return len([x for x in open(fasta_file,'r').readlines() if ('IG' in x) & ('>' in x)])
     def build_BLAST_databases(self, species_list = ['Homo+sapiens','Mus'], loci = ['IG']):
         urls = yaml.safe_load(open(os.path.join(self.package_directory, f'data', 'imgt_access.yaml'), 'r'))
+
+        ## clear all files
+        for sp in species_list:
+            for locus in loci:
+                for gene_name in urls[locus]:
+                    originating_gene = gene_name[1]
+                    species_name = species_translations[sp.replace('+','_')]
+                    outpath = os.path.join(self.blast_path,
+                                           f'imgt_{species_name}_{locus}_{originating_gene}_input.fasta')
+
+                    if os.path.exists(outpath) is True:
+                        os.remove(outpath)
+
         for sp in species_list:
             for locus in loci:
                 for gene_name in urls[locus]:
@@ -166,21 +197,30 @@ class IG_TR_Database():
                     outpath = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_{originating_gene}_input.fasta')
                     originating_fasta = os.path.join(self.source_fasta, f'{sp}_{gene_name}.fasta').replace('+', '_')
                     subprocess.call(f'cat {originating_fasta} >> {outpath}', shell=True)
+                    print(self.has_ig(outpath), locus, sp, gene_name, 'k')
                 input_file = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_V_input.fasta')
                 output_file = os.path.join(self.blast_path, f'{species_name}_{locus}V.fasta')
-                all_sp = os.path.join(self.blast_path, f'{locus}V.fasta')
+                print(self.has_ig(input_file), locus, sp)
                 subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/edit_imgt_file.pl {input_file} > {output_file}', shell = True)
+                print(self.has_ig(input_file), locus, sp)
+                self.remove_duplicates(output_file)
                 subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {output_file}', shell = True)
-                subprocess.call(f'cat {input_file} >> {all_sp}', shell = True)
+                print(self.has_ig(input_file), locus, gene_name, sp)
+
         for locus in loci:
             all_sp = os.path.join(self.blast_path, f'{locus}V.fasta')
-            seqs = dict((''.join(p.description.split('|')[1:3]), str(p.seq)) for p in SeqIO.parse(all_sp, format = 'fasta'))
             with open(all_sp, 'w') as k:
-                for x in seqs:
-                    k.write('>'+x+'\n'+seqs[x])
-            subprocess.call(
-                f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {all_sp}',
-                shell=True)
+                k.writelines('')
+            for species in species_list:
+                species_name = species_translations[species.replace('+', '_')]
+                output_file = os.path.join(self.blast_path, f'{species_name}_{locus}V.fasta')
+                seqs = dict((p.id+'|'+species_name, str(p.seq)) for p in SeqIO.parse(output_file, format = 'fasta'))
+                with open(all_sp, 'a') as k:
+                    for x in seqs:
+                        k.write('>'+x+'\n'+seqs[x]+'\n')
+                subprocess.call(
+                    f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {all_sp}',
+                    shell=True)
 
 
 
