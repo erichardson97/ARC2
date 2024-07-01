@@ -127,7 +127,7 @@ class SeqClassifier:
             output = pd.read_csv(f'{temp_out.name}blast.txt', sep = '\t')
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
-            top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()]).sort_values('bitscore', ascending = False).iloc[0]['species']
+            top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()]).sort_values('bitscore', ascending = False).iloc[0]
             return top_species
 
     def run_hmmscan(self, seq_record, hmm_out):
@@ -726,7 +726,7 @@ class SeqClassifier:
             )
         return receptor, chain_type, calc_mhc_allele, species
 
-    def classify(self, seq_record, bit_score_threshold=100):
+    def classify(self, seq_record, bit_score_threshold=100, recalc_species=True):
         """Returns BCR, TCR or MHC class and chain type for an input sequence.
 
         If sequence is MHC, finds its g-domain and returns its corresponding
@@ -741,22 +741,29 @@ class SeqClassifier:
         g_domain = ""
         calc_mhc_allele = ""
         receptor, chain_type, score, species = self.assign_class(seq_record, bit_score_threshold=bit_score_threshold)
+        species_score = score
         if receptor == "MHC-I" or receptor == "MHC-II":
             g_domain = self.assign_Gdomain(str(seq_record.seq), seq_record.id)
             calc_mhc_allele = self.get_MRO_allele(
                 self.mro_df, str(seq_record.seq), str(seq_record.description)
             )
-        return receptor, chain_type, calc_mhc_allele, score, species
+        else:
+            if recalc_species:
+                locus = 'IG' if receptor == 'BCR' else 'TR'
+                new_species = self.get_species(seq_record, locus = locus)
+                species = new_species['species']
+                species_score = new_species['bitscore']
+        return receptor, chain_type, calc_mhc_allele, score, species_name, species_score
 
     def classify_multiproc(self, seq_list):
-        out = pd.DataFrame(columns=["id", "class", "chain_type", "calc_mhc_allele", "species"])
+        out = pd.DataFrame(columns=["id", "class", "chain_type", "calc_mhc_allele", "species", "species_score"])
         cnt = 0
         for seq in seq_list:
             if seq.seq == "":
                 print(f"{seq.description} has empty sequence. Skipping sequence.")
                 continue
             if self.check_seq(seq):
-                receptor, chain_type, calc_mhc_allele, score, species = self.classify(seq)
+                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq)
             else:
                 print(
                     f"{seq.description} contains invalid amino acid sequence. Skipping sequence."
@@ -769,6 +776,7 @@ class SeqClassifier:
             out.loc[cnt, "calc_mhc_allele"] = calc_mhc_allele
             out.loc[cnt, "score"] = score
             out.loc[cnt, "species"] = species
+            out.loc[cnt, "species_score"] = species_score
             cnt += 1
 
         return out
