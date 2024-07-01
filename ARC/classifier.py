@@ -753,7 +753,7 @@ class SeqClassifier:
                 new_species = self.get_species(seq_record, locus = locus)
                 species = new_species['species']
                 species_score = new_species['bitscore']
-        return receptor, chain_type, calc_mhc_allele, score, species_name, species_score
+        return receptor, chain_type, calc_mhc_allele, score, species, species_score
 
     def classify_multiproc(self, seq_list):
         out = pd.DataFrame(columns=["id", "class", "chain_type", "calc_mhc_allele", "species", "species_score"])
