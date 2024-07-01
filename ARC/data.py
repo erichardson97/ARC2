@@ -45,15 +45,14 @@ class DataDownloader():
             with open(outfile, 'w') as k:
                 k.writelines(mro_request.content.decode())
 
-    def download_IG_TR_databases(self, mode = 'IMGT'):
+    def download_IG_TR_databases(self):
         db = IG_TR_Database()
         db.write_imgt_urls()
         db.download_imgt(species_list=['Homo+sapiens','Mus'], locus='TR')
-        db.download_imgt(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta'], locus='IG')
-        db.build_BLAST_databases(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta'])
+        db.download_imgt(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], locus='IG')
+        db.build_BLAST_databases(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], locus=['IG'])
+        db.build_BLAST_databases(species_list=['Homo+sapiens','Mus'], locus=['TR'])
         db.run_ANARCI_processing()
-
-
 
 
 
@@ -114,12 +113,15 @@ class IG_TR_Database():
                             raise urllib.error.URLError(request_url)
                         content = r.read()
                         fasta = self.caveman_parse_imgt_html(content)
-                        print(fasta)
                         if fasta[0] == '<hr/><b>Number of results = 0</b><br /><pre>':
                             f"Requested species + locus n'existe pas."
                             continue
                         with open(fasta_outfile, 'w') as x:
                             x.writelines('\n'.join(fasta))
+                        seqs = dict((p.description, str(p.seq)) for p in SeqIO.parse(fasta_outfile, format='fasta'))
+                        with open(fasta_outfile, 'w') as x:
+                            for p in seqs:
+                                x.write('>'+p+'\n'+seqs[p]+'\n')
                 except urllib.error.URLError as ex:
                     print("Failed to download from IMGT. %s\n" % ex)
                     print("Failed to download all files from IMGT. Exiting.")
@@ -137,34 +139,48 @@ class IG_TR_Database():
         fasta_block = [k for k, p in enumerate(html_str) if p == '</pre>']
         fasta_seqs = []
         seq = ''
-        for row in html_str[fasta_block[0] + 1: fasta_block[1]]:
+        for row in html_str[fasta_block[0]+2: fasta_block[1]]:
             if row.startswith('>'):
                 if seq != '':
                     fasta_seqs.append(seq)
                 fasta_seqs.append(row)
                 seq = ''
             else:
-                seq += row
+                if row == '':
+                    continue
+                if row[0] != '<':
+                    seq += row
         fasta_seqs.append(seq)
         return fasta_seqs
     def run_ANARCI_processing(self):
         anarci_processing_module = ANARCI_Processing()
         anarci_processing_module.run_process()
 
-    def build_BLAST_databases(self, species_list = ['Homo+sapiens','Mus']):
+    def build_BLAST_databases(self, species_list = ['Homo+sapiens','Mus'], loci = ['IG']):
         urls = yaml.safe_load(open(os.path.join(self.package_directory, f'data', 'imgt_access.yaml'), 'r'))
         for sp in species_list:
-            for locus in urls:
+            for locus in loci:
                 for gene_name in urls[locus]:
                     originating_gene = gene_name[1]
                     species_name = species_translations[sp.replace('+','_')]
-                    outpath = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_{originating_gene}.fasta')
-                    originating_fasta = os.path.join(self.source_fasta, f'{sp}_{gene_name}_input.fasta').replace('+', '_')
+                    outpath = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_{originating_gene}_input.fasta')
+                    originating_fasta = os.path.join(self.source_fasta, f'{sp}_{gene_name}.fasta').replace('+', '_')
                     subprocess.call(f'cat {originating_fasta} >> {outpath}', shell=True)
-                subprocess.call(f'edit_imgt_file.pl {sp}_{locus}V_input.fasta > {sp}_{locus}V.fasta', shell = True)
-                subprocess.call(f'makeblastdb -parse_seqids -dbtype prot -in {sp}_{locus}V.fasta', shell = True)
-                subprocess.call(f'cat {sp}_{locus}V_input.fasta >> {locus}_V.fasta')
-
+                input_file = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_V_input.fasta')
+                output_file = os.path.join(self.blast_path, f'{species_name}_{locus}V.fasta')
+                all_sp = os.path.join(self.blast_path, f'{locus}V.fasta')
+                subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/edit_imgt_file.pl {input_file} > {output_file}', shell = True)
+                subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {output_file}', shell = True)
+                subprocess.call(f'cat {input_file} >> {all_sp}', shell = True)
+        for locus in loci:
+            all_sp = os.path.join(self.blast_path, f'{locus}V.fasta')
+            seqs = dict((''.join(p.description.split('|')[1:3]), str(p.seq)) for p in SeqIO.parse(all_sp, format = 'fasta'))
+            with open(all_sp, 'w') as k:
+                for x in seqs:
+                    k.write('>'+x+'\n'+seqs[x])
+            subprocess.call(
+                f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {all_sp}',
+                shell=True)
 
 
 

@@ -264,7 +264,7 @@ class SeqClassifier:
         ndomains = len(top_hits)
         top_domains_set = {"".join(x["id"].split('_')[1:]) for x in top_hits}
         top_domains = {x["id"] for x in top_hits}
-        # print(top_domains)
+
         # These sets simplify checking for various conditions
         bcr_constant = {
             "KCC": "Kappa C",
