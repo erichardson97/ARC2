@@ -31,6 +31,7 @@ class DataDownloader():
 
     def validate_data(self, data_manifest):
         ## Needs to be finished.
+        pass
 
 
     def download_MRO_tsv(self):
@@ -52,8 +53,8 @@ class DataDownloader():
         db.write_imgt_urls()
         db.download_imgt(species_list=['Homo+sapiens','Mus'], locus='TR')
         db.download_imgt(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], locus='IG')
-        db.build_BLAST_databases(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], locus=['IG'])
-        db.build_BLAST_databases(species_list=['Homo+sapiens','Mus'], locus=['TR'])
+        db.build_BLAST_databases(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], loci=['IG'])
+        db.build_BLAST_databases(species_list=['Homo+sapiens','Mus'], loci=['TR'])
         db.run_ANARCI_processing()
 
 
