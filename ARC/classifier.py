@@ -130,7 +130,7 @@ class SeqClassifier:
             output = pd.read_csv(f'{temp_out.name}blast.txt', sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
-            top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()]).sort_values('bitscore', ascending = False).iloc[0]
+            top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()].drop('qseqid')).sort_values('bitscore', ascending = False).iloc[0]
             return top_species
 
     def get_species_seqfile(self, seq_file,
