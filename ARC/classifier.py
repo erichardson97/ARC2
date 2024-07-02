@@ -124,10 +124,28 @@ class SeqClassifier:
             path = os.path.join(blast_path, f'{locus}V.fasta')
             subprocess.call(f'blastp -query {temp_out.name} -db {path} -evalue 1e-6 -num_threads 4 -out {temp_out.name}blast.txt -outfmt 6', shell =
                             True)
-            output = pd.read_csv(f'{temp_out.name}blast.txt', sep = '\t')
+            if os.path.getsize(f'{temp_out.name}blast.txt') == 0:
+                top_species = {'species':'none', 'score': 0}
+                return top_species
+            output = pd.read_csv(f'{temp_out.name}blast.txt', sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
             top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()]).sort_values('bitscore', ascending = False).iloc[0]
+            return top_species
+
+    def get_species_seqfile(self, seq_file,
+                    blast_path = 'test/data/imgt/blast_fasta/', locus = "IG"):
+        db_path = os.path.join(blast_path, locus + "V.fasta")
+        with tempfile.NamedTemporaryFile(mode="w") as temp_out:
+            subprocess.call(f'blastp -query {seq_file} -db {db_path} -evalue 1e-6 -num_threads 4 -out {temp_out.name} -outfmt 6', shell =
+                            True)
+            if os.path.getsize(temp_out.name) == 0:
+                top_species = {'species':'none', 'score': 0}
+                return top_species
+            output = pd.read_csv(temp_out.name, sep = '\t', header = None)
+            output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
+            output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
+            top_species = output.groupby('qseqid').apply(lambda x: x.loc[x['bitscore'].idxmax()])
             return top_species
 
     def run_hmmscan(self, seq_record, hmm_out):
@@ -755,7 +773,7 @@ class SeqClassifier:
                 species_score = new_species['bitscore']
         return receptor, chain_type, calc_mhc_allele, score, species, species_score
 
-    def classify_multiproc(self, seq_list):
+    def classify_multiproc(self, seq_list, recalc_species = False):
         out = pd.DataFrame(columns=["id", "class", "chain_type", "calc_mhc_allele", "species", "species_score"])
         cnt = 0
         for seq in seq_list:
@@ -763,7 +781,8 @@ class SeqClassifier:
                 print(f"{seq.description} has empty sequence. Skipping sequence.")
                 continue
             if self.check_seq(seq):
-                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq)
+                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq, recalc_species \
+                = recalc_species)
             else:
                 print(
                     f"{seq.description} contains invalid amino acid sequence. Skipping sequence."
@@ -781,7 +800,7 @@ class SeqClassifier:
 
         return out
 
-    def classify_seqfile(self, seq_file):
+    def classify_seqfile(self, seq_file, recalc_species = True):
         """Classifies the sequences in a FASTA format file
 
         This method will write results of classificaiton to specified
@@ -803,5 +822,21 @@ class SeqClassifier:
                 # Use the map function to distribute the workload
                 results = pool.map(self.classify_multiproc, chunks)
                 out = pd.concat(results)
-
+        if recalc_species:
+            ig_tr = out[out['class'].isin(set(['BCR', 'TCR']))]
+            if ig_tr.shape[0] == 0:
+                pass
+            else:
+                ig_tr_sp = []
+                for locus, df in ig_tr.groupby('class'):
+                    locus_name = 'IG' if locus == 'BCR' else 'TR'
+                    ids = set(df['id'].unique())
+                    with tempfile.NamedTemporaryFile(mode="w") as temp_out:
+                        records = [p for p in seq_records if p.id in ids]
+                        SeqIO.write(records, temp_out.name, "fasta")
+                        species_reassignment = self.get_species_seqfile(locus = locus_name)
+                        ig_tr_sp.append(species_reassignment)
+                ig_tr_sp = pd.concat(ig_tr_sp)
+                out = pd.merge(left = out.drop(['species']), right = ig_tr_sp[['id', 'species', 'bitscore']].rename(columns = {'bitscore':'species_score'}),
+                               left_on = 'id', right_on = 'qseqid')
         out.to_csv(self.outfile, sep="\t", index=False)
