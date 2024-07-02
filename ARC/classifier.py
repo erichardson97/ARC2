@@ -299,13 +299,11 @@ class SeqClassifier:
         ndomains = len(top_hits)
         # set of the top domains - i.e. the unique types
         top_domains_set = {"".join(x["id"].split('_')[1:]) for x in top_hits}
-        # list of the top domains - counts of unique types
-        top_domains_list = ["".join(x["id"].split('_')[1:]) for x in top_hits]
         # set incl. species name
         top_domains = [x["id"].split('_')[0]+'_'+''.join(x['id'].split('_')[1:]) for x in top_hits]
         # species observed per unique
         chain_type_sp = {hit_type: [sp for sp, _ in (obj.split('_') for obj in top_domains) if _ == hit_type]
-                         for hit_type in top_domains_list}
+                         for hit_type in top_domains_set}
 
         # These sets simplify checking for various conditions
         bcr_constant = {
@@ -389,6 +387,11 @@ class SeqClassifier:
                 else:
                     species = '/'.join(['/'.join(chain_type_sp[p]) for p in [heavy, light]])
                     return ('TCR', 'construct', species)
+
+            else:
+                species = '/'.join([p.split('_')[0] for p in top_domains])
+                receptor_types = '/'.join(set(['BCR' if v_domain in bcr_var else 'TCR' for v_domain in v_domains]))
+                return (receptor_types, 'construct', species)
 
         if len(v_domains) > 2:
             species = '/'.join([p.split('_')[0] for p in top_domains])
