@@ -28,7 +28,7 @@ class DataDownloader():
         self.overwrite_status = overwrite
 
     def validate_data(self, data_manifest):
-        ''
+        ## Needs to be finished.
 
 
     def download_MRO_tsv(self):
@@ -61,7 +61,7 @@ class DataDownloader():
 class IG_TR_Database():
 
     def __init__(self):
-        self.package_directory = 'test' #os.path.dirname(os.path.abspath(__file__))
+        self.package_directory = os.path.dirname(os.path.abspath(__file__))
         if os.path.exists(os.path.join(self.package_directory, 'data/imgt')) is False:
             os.mkdir(os.path.join(self.package_directory, 'data/imgt'))
         self.source_fasta = os.path.join(self.package_directory, 'data/imgt/fasta')
@@ -70,6 +70,7 @@ class IG_TR_Database():
             os.mkdir(self.source_fasta)
         self.context = ssl.create_default_context()
         self.context.load_verify_locations(certifi.where())
+
     def write_imgt_urls(self):
         ig_urls = {"HV": "https://www.imgt.org/genedb/GENElect?query=7.3+IGHV&species=%s",
                 "HJ": "https://www.imgt.org/genedb/GENElect?query=7.6+IGHJ&species=%s",
@@ -156,27 +157,14 @@ class IG_TR_Database():
         anarci_processing_module = ANARCI_Processing()
         anarci_processing_module.run_process()
 
-    # def remove_duplicates(self, fasta_file):
-    #     entries = {}
-    #     for record in SeqIO.parse(fasta_file, 'fasta'):
-    #         group = record.description.split('|')[1]
-    #         if group not in entries:
-    #             entries[group] = []
-    #         entries[group].append(record.description)
-    #     entries_singleton = {p:max(entries[p], key = lambda x:int(x.split('|')[11].split(' AA')[0])) for p in entries}
-    #     sequence_dict = dict((p.description, p.seq) for p in SeqIO.parse(fasta_file, 'fasta'))
-
     def remove_duplicates(self, fasta_file):
         sequence_dict = dict((p.description, str(p.seq)) for p in SeqIO.parse(fasta_file, 'fasta'))
         with open(fasta_file, 'w') as k:
             for seq in sequence_dict:
                 k.write('>'+seq+'\n'+sequence_dict[seq]+'\n')
 
-    def has_ig(self, fasta_file):
-        return len([x for x in open(fasta_file,'r').readlines() if ('IG' in x) & ('>' in x)])
     def build_BLAST_databases(self, species_list = ['Homo+sapiens','Mus'], loci = ['IG']):
         urls = yaml.safe_load(open(os.path.join(self.package_directory, f'data', 'imgt_access.yaml'), 'r'))
-
         ## clear all files
         for sp in species_list:
             for locus in loci:
@@ -197,15 +185,11 @@ class IG_TR_Database():
                     outpath = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_{originating_gene}_input.fasta')
                     originating_fasta = os.path.join(self.source_fasta, f'{sp}_{gene_name}.fasta').replace('+', '_')
                     subprocess.call(f'cat {originating_fasta} >> {outpath}', shell=True)
-                    print(self.has_ig(outpath), locus, sp, gene_name, 'k')
                 input_file = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_V_input.fasta')
                 output_file = os.path.join(self.blast_path, f'{species_name}_{locus}V.fasta')
-                print(self.has_ig(input_file), locus, sp)
                 subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/edit_imgt_file.pl {input_file} > {output_file}', shell = True)
-                print(self.has_ig(input_file), locus, sp)
                 self.remove_duplicates(output_file)
                 subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {output_file}', shell = True)
-                print(self.has_ig(input_file), locus, gene_name, sp)
 
         for locus in loci:
             all_sp = os.path.join(self.blast_path, f'{locus}V.fasta')
@@ -221,9 +205,6 @@ class IG_TR_Database():
                 subprocess.call(
                     f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {all_sp}',
                     shell=True)
-
-
-
 
 
 class ANARCI_Processing():
