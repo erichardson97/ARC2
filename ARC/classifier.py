@@ -834,7 +834,7 @@ class SeqClassifier:
                     with tempfile.NamedTemporaryFile(mode="w") as temp_out:
                         records = [p for p in seq_records if p.id in ids]
                         SeqIO.write(records, temp_out.name, "fasta")
-                        species_reassignment = self.get_species_seqfile(seq_file = tempfile.name, locus = locus_name)
+                        species_reassignment = self.get_species_seqfile(seq_file = temp_out.name, locus = locus_name)
                         ig_tr_sp.append(species_reassignment)
                 ig_tr_sp = pd.concat(ig_tr_sp)
                 out = pd.merge(left = out.drop(['species']), right = ig_tr_sp[['id', 'species', 'bitscore']].rename(columns = {'bitscore':'species_score'}),
