@@ -234,6 +234,7 @@ class SeqClassifier:
                 new = True
                 # Only look at those with hits that are over the threshold bit-score.
                 if hsp.bitscore >= bit_score_threshold:
+                    print(hsp.hit_id)
                     # Check to see if we already have seen the domain
                     for i in range(len(domains)):
                         if self.domains_are_same(domains[i], hsp):
@@ -283,6 +284,117 @@ class SeqClassifier:
             top_descriptions[i]["chain_type"] = chain
 
         return hit_table, top_descriptions
+
+
+
+    def prototype_chain_type(self, top_hits):
+        """Retrieves the chain type from the list of top hits
+
+        Args:
+            top_hits: the highest scoring hits per domain of an HMMER query
+
+        Returns:
+            The chain type as well as the specific domains present in a HMM hit
+        """
+        ndomains = len(top_hits)
+        # set of the top domains - i.e. the unique types
+        top_domains_set = {"".join(x["id"].split('_')[1:]) for x in top_hits}
+        # list of the top domains - counts of unique types
+        top_domains_list = ["".join(x["id"].split('_')[1:]) for x in top_hits]
+        # set incl. species name
+        top_domains = [x["id"].split('_')[0]+'_'+''.join(x['id'].split('_')[1:]) for x in top_hits]
+        # species observed per unique
+        chain_type_sp = {hit_type: [sp for sp, _ in (obj.split('_') for obj in top_domains) if _ == hit_type]
+                         for hit_type in top_domains_list}
+
+        # These sets simplify checking for various conditions
+        bcr_constant = {
+            "KCC": "Kappa C",
+            "LCC": "Lambda C",
+            "HCC": "Heavy C",
+            "HC1": "Heavy C domain 1",
+            "HC2": "Heavy C domain 2",
+            "HC3": "Heavy C domain 3",
+        }
+        tcr_constant = {
+            "TRAC": "Alpha C",
+            "TRBC": "Beta C",
+            "TRDC": "Delta C",
+            "TRGC": "Gamma C",
+        }
+        tcr_var = {"A": "Alpha V", "B": "Beta V", "G": "Gamma V", "D": "Delta V"}
+        bcr_var = {"H": "Heavy V", "K": "Kappa V", "L": "Lambda V"}
+
+        var = {**bcr_var, **tcr_var}
+        constant = {**bcr_constant, **tcr_constant}
+
+        # We have no hits
+        if ndomains == 0:
+            return None, None, None
+
+        v_domains = top_domains_set.intersection(var)
+        # set of V domain types
+        c_domains = top_domains_set.intersection(constant)
+        # set of C domain types
+
+        # if no V domain types recognised:
+        if len(v_domains) < 1:
+            return None, None, None
+
+        # if only a single V domain type recognised,
+        if len(v_domains) == 1:
+            v_domain = next(iter(v_domains))
+            v_type = var[v_domain]
+            receptor_type = 'BCR' if v_domain in bcr_var else 'TCR'
+            # if only one V domain hit
+            if len(chain_type_sp[v_domain]) == 1:
+                species = chain_type_sp[v_domain][0]
+                if len(c_domains) != 0:
+                    c_types = '/'.join(sorted([constant[c_domain] for c_domain in c_domains]))
+                    return (receptor_type, v_type + ', ' + c_types, species)
+                else:
+                    return (receptor_type, v_type, species)
+            # > one domain of the same type: a construct, not currently explicitly typed in IEDB schema.
+            else:
+                species = '/'.join(set(chain_type_sp[v_domain]))
+                return (receptor_type, 'construct', species )
+
+        # Possible scFv / tandem TCR.
+        if len(v_domains) == 2:
+            # heavy + light --> scFv.
+            if v_domains == {"H", "L"}:
+                # if one copy of each, traditional scFv
+                if ( len(chain_type_sp['H']) == 1) & ( len(chain_type_sp['L']) == 1):
+                    species = chain_type_sp['H'][0] + '/' + chain_type_sp['L'][0]
+                    if len(c_domains) != 0:
+                        c_types = '/'.join(sorted([constant[c_domain] for c_domain in c_domains]))
+                        return ('BCR', 'scFv' + ', ' + c_types, species)
+                    else:
+                        return ('BCR', 'scFv', species)
+                # else, a construct.
+                else:
+                    species = '/'.join(['/'.join(chain_type_sp[p]) for p in ['H', 'L']])
+                    return ('BCR', 'construct', species)
+
+            if (v_domains == {"G", "D"}) | (v_domains == {"A", "B"}):
+                if v_domains == {"G", "D"}:
+                    heavy = "G"
+                    light = "D"
+                else:
+                    heavy = "A"
+                    light = "B"
+                if ( len(chain_type_sp[heavy]) == 1) & ( len(chain_type_sp[light]) == 1):
+                    species = chain_type_sp[heavy][0] + '/' + chain_type_sp[light][0]
+                    return ('TCR', 'TscFv', species)
+                else:
+                    species = '/'.join(['/'.join(chain_type_sp[p]) for p in [heavy, light]])
+                    return ('TCR', 'construct', species)
+
+        if len(v_domains) > 2:
+            species = '/'.join([p.split('_')[0] for p in top_domains])
+            receptor_types = '/'.join(set(['BCR' if v_domain in bcr_var else 'TCR' for v_domain in v_domains]))
+            return (receptor_types, 'construct', species)
+
 
     def get_chain_type(self, top_hits):
         """Retrieves the chain type from the list of top hits
