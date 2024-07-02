@@ -287,7 +287,7 @@ class SeqClassifier:
 
 
 
-    def prototype_chain_type(self, top_hits):
+    def get_chain_type(self, top_hits):
         """Retrieves the chain type from the list of top hits
 
         Args:
@@ -398,134 +398,6 @@ class SeqClassifier:
             receptor_types = '/'.join(set(['BCR' if v_domain in bcr_var else 'TCR' for v_domain in v_domains]))
             return (receptor_types, 'construct', species)
 
-
-    def get_chain_type(self, top_hits):
-        """Retrieves the chain type from the list of top hits
-
-        Args:
-            top_hits: the highest scoring hits per domain of an HMMER query
-
-        Returns:
-            The chain type as well as the specific domains present in a HMM hit
-        """
-
-        ndomains = len(top_hits)
-        top_domains_set = {"".join(x["id"].split('_')[1:]) for x in top_hits}
-        top_domains = {x["id"] for x in top_hits}
-
-        # These sets simplify checking for various conditions
-        bcr_constant = {
-            "KCC": "Kappa C",
-            "LCC": "Lambda C",
-            "HCC": "Heavy C",
-            "HC1": "Heavy C domain 1",
-            "HC2": "Heavy C domain 2",
-            "HC3": "Heavy C domain 3",
-        }
-        tcr_constant = {
-            "TRAC": "Alpha C",
-            "TRBC": "Beta C",
-            "TRDC": "Delta C",
-            "TRGC": "Gamma C",
-        }
-        tcr_var = {"A": "Alpha V", "B": "Beta V", "G": "Gamma V", "D": "Delta V"}
-        bcr_var = {"H": "Heavy V", "K": "Kappa V", "L": "Lambda V"}
-
-        # We have no hits
-        if ndomains == 0:
-            return None, None, None
-
-        if ndomains == 1:
-            # Check for single constant domains
-            if top_domains_set.issubset(bcr_constant):
-                # sets don't support indexing so this gets messy
-                return ("BCR", bcr_constant[next(iter(top_domains_set))],
-                        next(iter(top_domains)).split('_')[0])
-            if top_domains_set.issubset(tcr_constant):
-                return ("TCR", tcr_constant[next(iter(top_domains_set))],
-                        next(iter(top_domains)).split('_')[0])
-
-            # Check for single variable domains
-            if top_domains_set.issubset(tcr_var.keys()):
-                return ("TCR", tcr_var[next(iter(top_domains_set))], next(iter(top_domains)).split('_')[0])
-            if top_domains_set.issubset(bcr_var.keys()):
-                return ("BCR", bcr_var[next(iter(top_domains_set))], next(iter(top_domains)).split('_')[0])
-
-        # Check if the construct is artificial scfv BCR
-        if ndomains == 2 and top_domains_set.issubset(bcr_var.keys()):
-            if len(top_domains) == 2:
-                domain_1, domain_2 = list(top_domains)
-            else:
-                domain_1, = list(top_domains)
-                domain_2 = domain_1
-            if domain_1.split('_')[1] == "H" and domain_2.split('_')[1] == "L":
-                return ("BCR", "scFv", domain_1.split('_')[0] + '/' + domain_2.split('_')[0])
-            elif domain_1.split('_')[1] == "L" and domain_2.split('_')[1] == "H":
-                return ("BCR", "scFv", domain_2.split('_')[0] + '/' + domain_1.split('_')[0])
-            else:
-                return ("BCR", "construct", domain_1.split('_')[0] + '/' + domain_2.split('_')[0])
-
-        # Check if the construct is artificial scfv TCR
-        if ndomains == 2 and top_domains_set.issubset(tcr_var.keys()):
-            if len(top_domains) == 2:
-                domain_1, domain_2 = list(top_domains)
-            else:
-                domain_1, = list(top_domains)
-                domain_2 = domain_1
-            return ("TCR", "TscFv", domain_1.split('_')[0] + '/' + domain_2.split('_')[0])
-
-        # Check for tandem scfv's and other rare 3+ domain constructs
-        if ndomains >= 3 and top_domains_set.issubset(tcr_var.keys()):
-            species = '/'.join([p.split('_')[0] for p in top_domains])
-            return ("TCR", "construct", species)
-        if ndomains >= 3 and top_domains_set.issubset(bcr_var.keys()):
-            species = '/'.join([p.split('_')[0] for p in top_domains])
-            return ("BCR", "construct", species)
-
-        # Handle variable with constant
-        if any(x in iter(tcr_constant) for x in iter(top_domains_set)):
-            for x in iter(top_domains):
-                if ''.join(x.split('_')[1:]) in tcr_var:
-                    top_domains.remove(x)
-                    constant = next(iter(top_domains))
-                    return (
-                        "TCR",
-                        tcr_var[x.split('_')[1]] + ", " + tcr_constant[''.join(constant.split('_')[1:])],
-                        x.split('_')[0] + '/' + constant.split('_')[0]
-                    )
-                elif ''.join(x.split('_')[1:]) in tcr_constant:
-                    top_domains.remove(x)
-                    variable = next(iter(top_domains))
-                    return (
-                        "TCR",
-                        tcr_var[variable.split('_')[1]] + ", " + tcr_constant[''.join(x.split('_')[1:])],
-                        variable.split('_')[0] + '/' + x.split('_')[0]
-                    )
-
-        if any(x in iter(bcr_constant) for x in iter(top_domains_set)):
-            for x in iter(top_domains):
-                if ''.join(x.split('_')[1:]) in bcr_var:
-                    top_domains.remove(x)
-                    constant = next(iter(top_domains))
-                    return (
-                        "BCR",
-                        bcr_var[x.split('_')[1]] + ", " + bcr_constant[''.join(constant.split('_')[1:])],
-                        x.split('_')[0] + '/' + constant.split('_')[0]
-                    )
-                elif ''.join(x.split('_')[1:]) in bcr_constant:
-                    top_domains.remove(x)
-                    variable = next(iter(top_domains))
-                    return (
-                        "BCR",
-                        bcr_var[variable.split('_')[1]] + ", " + bcr_constant[''.join(x.split('_')[1:])],
-                        variable.split('_')[0] + '/' + x.split('_')[0]
-                    )
-
-        if ndomains >= 2:
-            species = '/'.join([p.split('_')[0] for p in top_domains])
-            return ("Unknown", "construct", species)
-
-        return None, None
 
     def assign_Gdomain(self, seq, seq_id=None):
         """Returns G domain of a MHC sequence.
