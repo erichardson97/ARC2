@@ -11,6 +11,8 @@ from subprocess import Popen, PIPE
 import subprocess
 from Bio import SeqIO
 import yaml
+from datetime import date
+
 
 species_translations = {"Homo_sapiens": "human",
                     "Mus": "mouse",
@@ -98,7 +100,7 @@ class IG_TR_Database():
                 "DC": "https://www.imgt.org/genedb/GENElect?query=7.3+TRGC&species=%s",
                 }
         with open(os.path.join(self.package_directory, f'data', f'imgt_access.yaml'), 'w') as file:
-            file.write(yaml.dump({'IG': ig_urls, 'TR': tr_urls}))
+            file.write(yaml.dump({'IG': ig_urls, 'TR': tr_urls, 'date': date.today()}))
 
 
     def download_imgt(self, species_list = ['Homo+sapiens','Mus+musculus'], locus = 'IG'):
