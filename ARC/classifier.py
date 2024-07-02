@@ -838,6 +838,6 @@ class SeqClassifier:
                         ig_tr_sp.append(species_reassignment)
                 ig_tr_sp = pd.concat(ig_tr_sp)
                 ig_tr_sp['qseqid'] = ig_tr_sp['qseqid'].map(str)
-                out = pd.merge(left = out.drop(['species'], axis = 1), right = ig_tr_sp[['qseqid', 'species', 'bitscore']].rename(columns = {'bitscore':'species_score'}),
-                               left_on = 'id', right_on = 'qseqid')
+                out = pd.merge(left = out.drop(['species', 'species_score'], axis = 1), right = ig_tr_sp[['qseqid', 'species', 'bitscore']].rename(columns = {'bitscore':'species_score'}),
+                               left_on = 'id', right_on = 'qseqid').drop(['qseqid'], axis = 1)
         out.to_csv(self.outfile, sep="\t", index=False)
