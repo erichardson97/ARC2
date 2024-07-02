@@ -145,7 +145,7 @@ class SeqClassifier:
             output = pd.read_csv(temp_out.name, sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
-            top_species = output.groupby('qseqid').apply(lambda x: x.loc[x['bitscore'].idxmax()])
+            top_species = output.groupby('qseqid').apply(lambda x: x.loc[x['bitscore'].idxmax()].drop(['qseqid'])).reset_index()
             return top_species
 
     def run_hmmscan(self, seq_record, hmm_out):
