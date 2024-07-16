@@ -141,7 +141,7 @@ class SeqClassifier:
                             True)
             if os.path.getsize(temp_out.name) == 0:
                 top_species = {'species':'none', 'score': 0}
-                return pd.DataFrame(top_species)
+                return pd.DataFrame({p.description:top_species for p in SeqIO.parse(seq_file, format='fasta')}).T
             output = pd.read_csv(temp_out.name, sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
