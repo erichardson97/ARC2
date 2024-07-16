@@ -14,3 +14,5 @@ with tempfile.NamedTemporaryFile(mode="w") as hmm_out:
     hmmer_query = SearchIO.read(hmm_out.name, "hmmer3-text")
 hit_table, top_descriptions = clf.parse_hmmer_query(hmmer_query, bit_score_threshold=bit_score_threshold)
 clf.prototype_chain_type(top_descriptions)
+
+

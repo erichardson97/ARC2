@@ -141,7 +141,7 @@ class SeqClassifier:
                             True)
             if os.path.getsize(temp_out.name) == 0:
                 top_species = {'species':'none', 'score': 0}
-                return top_species
+                return pd.DataFrame(top_species)
             output = pd.read_csv(temp_out.name, sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
@@ -819,7 +819,7 @@ class SeqClassifier:
                     locus_name = 'IG' if locus == 'BCR' else 'TR'
                     ids = set(df['id'].unique())
                     with tempfile.NamedTemporaryFile(mode="w") as temp_out:
-                        records = [p for p in seq_records if p.id in ids]
+                        records = [p for p in seq_records if p.description in ids]
                         SeqIO.write(records, temp_out.name, "fasta")
                         species_reassignment = self.get_species_seqfile(seq_file = temp_out.name, locus = locus_name)
                         ig_tr_sp.append(species_reassignment)
