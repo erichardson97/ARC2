@@ -12,6 +12,7 @@ import subprocess
 from Bio import SeqIO
 import yaml
 from datetime import date
+from importlib.resources import files
 
 
 species_translations = {"Homo_sapiens": "human",
@@ -26,7 +27,7 @@ species_translations = {"Homo_sapiens": "human",
 
 class DataDownloader():
     def __init__(self, overwrite = False):
-        self.package_directory = os.path.dirname(os.path.abspath(__file__))
+        self.package_directory = files('ARC')
         self.overwrite_status = overwrite
 
     def validate_data(self, data_manifest):
@@ -52,8 +53,8 @@ class DataDownloader():
         db = IG_TR_Database()
         db.write_imgt_urls()
         db.download_imgt(species_list=['Homo+sapiens','Mus'], locus='TR')
-        db.download_imgt(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], locus='IG')
-        db.build_BLAST_databases(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], loci=['IG'])
+        db.download_imgt(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Oryctolagus+cuniculus', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], locus='IG')
+        db.build_BLAST_databases(species_list=['Homo+sapiens', 'Mus', 'Macaca+mulatta', 'Oryctolagus+cuniculus', 'Vicugna+pacos', 'Sus+scrofa', 'Bos+taurus', 'Rattus+norvegicus'], loci=['IG'])
         db.build_BLAST_databases(species_list=['Homo+sapiens','Mus'], loci=['TR'])
         db.run_ANARCI_processing()
 
@@ -64,13 +65,15 @@ class DataDownloader():
 class IG_TR_Database():
 
     def __init__(self):
-        self.package_directory = os.path.dirname(os.path.abspath(__file__))
+        self.package_directory = files('ARC')
         if os.path.exists(os.path.join(self.package_directory, 'data/imgt')) is False:
             os.mkdir(os.path.join(self.package_directory, 'data/imgt'))
         self.source_fasta = os.path.join(self.package_directory, 'data/imgt/fasta')
         self.blast_path = os.path.join(self.package_directory, 'data/imgt/blast_fasta')
         if os.path.exists(self.source_fasta) is False:
             os.mkdir(self.source_fasta)
+        if os.path.exists(self.blast_path) is False:
+            os.mkdir(self.blast_path)
         self.context = ssl.create_default_context()
         self.context.load_verify_locations(certifi.where())
 
@@ -190,9 +193,9 @@ class IG_TR_Database():
                     subprocess.call(f'cat {originating_fasta} >> {outpath}', shell=True)
                 input_file = os.path.join(self.blast_path, f'imgt_{species_name}_{locus}_V_input.fasta')
                 output_file = os.path.join(self.blast_path, f'{species_name}_{locus}V.fasta')
-                subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/edit_imgt_file.pl {input_file} > {output_file}', shell = True)
+                subprocess.call(f'edit_imgt_file.pl {input_file} > {output_file}', shell = True)
                 self.remove_duplicates(output_file)
-                subprocess.call(f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {output_file}', shell = True)
+                subprocess.call(f'makeblastdb -parse_seqids -dbtype prot -in {output_file}', shell = True)
 
         for locus in loci:
             all_sp = os.path.join(self.blast_path, f'{locus}V.fasta')
@@ -205,8 +208,7 @@ class IG_TR_Database():
                 with open(all_sp, 'a') as k:
                     for x in seqs:
                         k.write('>'+x+'\n'+seqs[x]+'\n')
-                subprocess.call(
-                    f'external_scripts/ncbi-igblast-1.22.0/bin/makeblastdb -parse_seqids -dbtype prot -in {all_sp}',
+                subprocess.call(f'makeblastdb -parse_seqids -dbtype prot -in {all_sp}',
                     shell=True)
 
 
@@ -217,7 +219,7 @@ class ANARCI_Processing():
     """
 
     def __init__(self):
-        self.package_directory = 'test' #os.path.dirname(os.path.abspath(__file__))
+        self.package_directory = files('ARC')
         self.fasta_path = os.path.join(self.package_directory, 'data', 'imgt', 'fasta')
         self.amino_acids = sorted(list("QWERTYIPASDFGHKLCVNM"))
         self.acid_set = set(self.amino_acids + ["."])
@@ -358,12 +360,8 @@ class ANARCI_Processing():
 
         ffile = self.write_fasta(jalignments)
         al_filename = os.path.join(self.muscle_alignments, "all_js_aligned.fasta")
-
-        if sys.platform == "darwin":
-            pr = Popen(["muscle_macOS", "-in", ffile, "-gapopen", "-10", "-out", al_filename, ], stdout=PIPE,
-                       stderr=PIPE)
-        else:
-            pr = Popen(["muscle", "-in", ffile, "-gapopen", "-10", "-out", al_filename, ], stdout=PIPE, stderr=PIPE)
+        pr = Popen(["muscle", "-in", ffile, "-gapopen", "-10", "-out", al_filename, ], stdout=PIPE, stderr=PIPE)
+    #    pr = Popen(["muscle", "-align", ffile, "-gapopen", "-10", "-output", al_filename, ], stdout=PIPE, stderr=PIPE)
         o, e = pr.communicate()
         aligned = self.read_fasta(al_filename)
         new_jalignments = {}
@@ -374,6 +372,7 @@ class ANARCI_Processing():
             if name == "Mus|H|Mus musculus|IGHJ3*01":
                 ref_aligned = sequence
                 break
+        print(ref_aligned, reference[0])
         start = ref_aligned.index(reference[0])
         if start > reference[1]:
             START = start + 1 - reference[1]
@@ -693,3 +692,7 @@ class ANARCI_Processing():
         self.output_C_alignments(c3alignments, 'C3')
 
         self.run_hmmbuild()
+
+
+
+
