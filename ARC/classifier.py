@@ -72,6 +72,7 @@ class SeqClassifier:
             self.blast_path = ""
         else:
             self.blast_path = blast_path
+        self.blast_db_path = os.path.join(self.package_directory, 'data/blast_fasta')
 
     def check_seq(self, seq_record):
         """Checks validity of an amino acid sequence
@@ -115,8 +116,10 @@ class SeqClassifier:
 
         return out
 
-    def get_species(self, seq_record,
-                    blast_path = 'test/data/imgt/blast_fasta/', locus = "IG"):
+    def get_species(self, seq_record, locus = "IG"):
+
+        blast_path = self.blast_db_path
+
         with tempfile.NamedTemporaryFile(mode="w") as temp_out:
             if not seq_record.seq:
                 return False
@@ -234,7 +237,6 @@ class SeqClassifier:
                 new = True
                 # Only look at those with hits that are over the threshold bit-score.
                 if hsp.bitscore >= bit_score_threshold:
-                    print(hsp.hit_id)
                     # Check to see if we already have seen the domain
                     for i in range(len(domains)):
                         if self.domains_are_same(domains[i], hsp):
