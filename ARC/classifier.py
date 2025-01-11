@@ -39,8 +39,7 @@ class SeqClassifier:
     def __init__(
             self, seqfile=None, outfile=None, threads=1, hmmer_path=None, blast_path=None, hmm_path=None):
         # Relative paths and IO handling
-        self.package_directory = os.path.dirname(os.path.abspath(os.getcwd()))
-        # self.package_directory = os.path.dirname(os.path.abspath(__file__))
+        self.package_directory = os.path.dirname(os.path.abspath(__file__))
         self.seqfile = seqfile
         self.outfile = outfile
         # HMM related scores and files
