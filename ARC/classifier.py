@@ -39,7 +39,8 @@ class SeqClassifier:
     def __init__(
             self, seqfile=None, outfile=None, threads=1, hmmer_path=None, blast_path=None, hmm_path=None):
         # Relative paths and IO handling
-        self.package_directory = os.path.dirname(os.path.abspath(__file__))
+        self.package_directory = os.path.dirname(os.path.abspath(os.getcwd()))
+        # self.package_directory = os.path.dirname(os.path.abspath(__file__))
         self.seqfile = seqfile
         self.outfile = outfile
         # HMM related scores and files
@@ -72,7 +73,7 @@ class SeqClassifier:
             self.blast_path = ""
         else:
             self.blast_path = blast_path
-        self.blast_db_path = os.path.join(self.package_directory, 'data/blast_fasta')
+        self.blast_db_path = os.path.join(self.package_directory, 'data/imgt/blast_fasta')
 
     def check_seq(self, seq_record):
         """Checks validity of an amino acid sequence
@@ -133,12 +134,11 @@ class SeqClassifier:
             output = pd.read_csv(f'{temp_out.name}blast.txt', sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
-            top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()].drop('qseqid')).sort_values('bitscore', ascending = False).iloc[0]
+            top_species = output.groupby('sseqid').apply(lambda x:x.loc[x['bitscore'].idxmax()], include_groups=False).sort_values('bitscore', ascending = False).iloc[0]
             return top_species
 
-    def get_species_seqfile(self, seq_file,
-                    blast_path = 'test/data/imgt/blast_fasta/', locus = "IG"):
-        db_path = os.path.join(blast_path, locus + "V.fasta")
+    def get_species_seqfile(self, seq_file, locus = "IG"):
+        db_path = os.path.join(self.blast_db_path, locus + "V.fasta")
         with tempfile.NamedTemporaryFile(mode="w") as temp_out:
             subprocess.call(f'blastp -query {seq_file} -db {db_path} -evalue 1e-6 -num_threads 4 -out {temp_out.name} -outfmt 6', shell =
                             True)
@@ -148,7 +148,8 @@ class SeqClassifier:
             output = pd.read_csv(temp_out.name, sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
             output['species'] = output['sseqid'].map(lambda x:x.split('|')[1])
-            top_species = output.groupby('qseqid').apply(lambda x: x.loc[x['bitscore'].idxmax()].drop(['qseqid'])).reset_index()
+            print(output)
+            top_species = output.groupby('qseqid').apply(lambda x: x.loc[x['bitscore'].idxmax()], include_groups=False).reset_index()
             return top_species
 
     def run_hmmscan(self, seq_record, hmm_out):

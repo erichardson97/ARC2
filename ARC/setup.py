@@ -1,5 +1,7 @@
 import setuptools
 from download_data import *
+import os
+import shutil
 
 class PostInstallCommand(setuptools.command.install):
     def run(self):
@@ -8,6 +10,8 @@ class PostInstallCommand(setuptools.command.install):
         data = DataDownloader()
         data.download_MRO_tsv()
         data.download_IG_TR_databases()
+        shutil.copytree(os.path.join(data.package_directory, 'data'), self.install_lib)
+
 
 
 with open("README.md", "r") as fh:
