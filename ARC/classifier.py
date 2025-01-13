@@ -37,9 +37,10 @@ class SeqClassifier:
         blast_path (str): optional argument containing the path to your BLAST installation"""
 
     def __init__(
-            self, seqfile=None, outfile=None, threads=1, hmmer_path=None, blast_path=None, hmm_path=None):
+            self, seqfile=None, outfile=None, recalc_species=True, threads=1, hmmer_path=None, blast_path=None, hmm_path=None):
         # Relative paths and IO handling
         self.package_directory = os.path.dirname(os.path.abspath(__file__))
+        self.recalc_species = recalc_species
         self.seqfile = seqfile
         self.outfile = outfile
         # HMM related scores and files
@@ -735,7 +736,7 @@ class SeqClassifier:
             )
         return receptor, chain_type, calc_mhc_allele, species
 
-    def classify(self, seq_record, bit_score_threshold=100, recalc_species=True):
+    def classify(self, seq_record, bit_score_threshold=100):
         """Returns BCR, TCR or MHC class and chain type for an input sequence.
 
         If sequence is MHC, finds its g-domain and returns its corresponding
@@ -757,7 +758,7 @@ class SeqClassifier:
                 self.mro_df, str(seq_record.seq), str(seq_record.description)
             )
         else:
-            if recalc_species:
+            if self.recalc_species:
                 locus = 'IG' if receptor == 'BCR' else 'TR'
                 new_species = self.get_species(seq_record, locus = locus)
                 species = new_species['species']
@@ -772,8 +773,7 @@ class SeqClassifier:
                 print(f"{seq.description} has empty sequence. Skipping sequence.")
                 continue
             if self.check_seq(seq):
-                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq, recalc_species \
-                = recalc_species)
+                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq, recalc_species = self.recalc_species)
             else:
                 print(
                     f"{seq.description} contains invalid amino acid sequence. Skipping sequence."
@@ -813,7 +813,7 @@ class SeqClassifier:
                 # Use the map function to distribute the workload
                 results = pool.map(self.classify_multiproc, chunks)
                 out = pd.concat(results)
-        if recalc_species:
+        if self.recalc_species:
             ig_tr = out[out['class'].isin(set(['BCR', 'TCR']))]
             if ig_tr.shape[0] == 0:
                 pass

@@ -28,6 +28,13 @@ elif sys.argv[1] == "classify":
     prsr = argparse.ArgumentParser(
         prog='classify', description='Classify protein sequences using HMMs')
     prsr.add_argument(
+        '-s',
+        help="whether to recalculated species using BLAST",
+        type=bool,
+        metavar='recalc_species',
+        default=True
+    )
+    prsr.add_argument(
         '-p',
         help="the number of threads to use (default=1)",
         type=int,
@@ -59,5 +66,5 @@ elif sys.argv[1] == "classify":
         metavar='blast_path',
         required=False)
     args = prsr.parse_args(sys.argv[2:])
-    classifier = SeqClassifier(args.i, args.o, args.p, args.hmmer, args.blast)
+    classifier = SeqClassifier(args.i, args.s, args.o, args.p, args.hmmer, args.blast)
     classifier.classify_seqfile(args.i)
