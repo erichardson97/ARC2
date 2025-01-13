@@ -2,16 +2,20 @@ import setuptools
 from download_data import *
 import os
 import shutil
+from distutils.command.install import install
 
-class PostInstallCommand(setuptools.command.install):
+class PostInstallCommand(install):
     def run(self):
         install.run(self)
         print(f'Downloading and processing relevant IMGT and MRO data.')
         data = DataDownloader()
         data.download_MRO_tsv()
         data.download_IG_TR_databases()
-        shutil.copytree(os.path.join(data.package_directory, 'data'), self.install_lib)
-
+        print(f'copying')
+        try:
+            shutil.copytree(os.path.join(data.package_directory, 'data'), self.install_lib)
+        except:
+            print(f'failed')
 
 
 with open("README.md", "r") as fh:
@@ -20,7 +24,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="bio-arc",
     version="0.2",
-    author="Austin Crinklaw",
+    author="Austin Crinklaw/Eric Hardson",
     author_email="erichardson@lji.org",
     description="Antigen Receptor Classifier (II)",
     long_description=long_description,
