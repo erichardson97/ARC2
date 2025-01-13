@@ -13,6 +13,7 @@ from Bio import SeqIO
 import yaml
 from datetime import date
 from importlib.resources import files
+from tqdm import tqdm
 
 
 species_translations = {"Homo_sapiens": "human",
@@ -109,7 +110,8 @@ class IG_TR_Database():
 
     def download_imgt(self, species_list = ['Homo+sapiens','Mus+musculus'], locus = 'IG'):
         urls = yaml.safe_load(open(os.path.join(self.package_directory, f'data', 'imgt_access.yaml'), 'r'))[locus]
-        for sp in species_list:
+        print(f'Downloading IMGT references for {locus} locus.')
+        for sp in tqdm(species_list):
             for locus in urls:
                 fasta_outfile = os.path.join(self.source_fasta, f'{sp}_{locus}.fasta').replace('+', '_')
                 request_url = urls[locus] % sp
@@ -160,6 +162,7 @@ class IG_TR_Database():
         fasta_seqs.append(seq)
         return fasta_seqs
     def run_ANARCI_processing(self):
+        print(f'Building HMMs.')
         anarci_processing_module = ANARCI_Processing()
         anarci_processing_module.run_process()
 
@@ -170,6 +173,7 @@ class IG_TR_Database():
                 k.write('>'+seq+'\n'+sequence_dict[seq]+'\n')
 
     def build_BLAST_databases(self, species_list = ['Homo+sapiens','Mus'], loci = ['IG']):
+        print(f'Building BLAST databases.')
         urls = yaml.safe_load(open(os.path.join(self.package_directory, f'data', 'imgt_access.yaml'), 'r'))
         ## clear all files
         for sp in species_list:
