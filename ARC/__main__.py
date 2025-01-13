@@ -27,13 +27,7 @@ if len(sys.argv) < 2 or (sys.argv[1] not in tasks):
 elif sys.argv[1] == "classify":
     prsr = argparse.ArgumentParser(
         prog='classify', description='Classify protein sequences using HMMs')
-    prsr.add_argument(
-        '-s',
-        help="whether to recalculated species using BLAST",
-        type=bool,
-        metavar='recalc_species',
-        default=True
-    )
+    prsr.add_argument('-s', action=argparse.BooleanOptionalAction, default=False)
     prsr.add_argument(
         '-p',
         help="the number of threads to use (default=1)",
@@ -66,5 +60,5 @@ elif sys.argv[1] == "classify":
         metavar='blast_path',
         required=False)
     args = prsr.parse_args(sys.argv[2:])
-    classifier = SeqClassifier(args.i, args.s, args.o, args.p, args.hmmer, args.blast)
+    classifier = SeqClassifier(args.i, args.o, args.s, args.p, args.hmmer, args.blast)
     classifier.classify_seqfile(args.i)
