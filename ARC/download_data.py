@@ -112,11 +112,11 @@ class IG_TR_Database():
         urls = yaml.safe_load(open(os.path.join(self.package_directory, f'data', 'imgt_access.yaml'), 'r'))[locus]
         print(f'Downloading IMGT references for {locus} locus.')
         for sp in tqdm(species_list):
+            print(f'Species: {sp}')
             for locus in urls:
                 fasta_outfile = os.path.join(self.source_fasta, f'{sp}_{locus}.fasta').replace('+', '_')
                 request_url = urls[locus] % sp
                 try:
-                    print(f"Working on {request_url}.")
                     with urllib.request.urlopen(request_url, context = self.context) as r:
                         if r.status != 200:
                             raise urllib.error.URLError(request_url)
