@@ -129,7 +129,7 @@ class SeqClassifier:
             subprocess.call(f'blastp -query {temp_out.name} -db {path} -evalue 1e-6 -num_threads 4 -out {temp_out.name}blast.txt -outfmt 6', shell =
                             True)
             if os.path.getsize(f'{temp_out.name}blast.txt') == 0:
-                top_species = {'species':'none', 'score': 0}
+                top_species = {'species':'none', 'bitscore': 0}
                 return top_species
             output = pd.read_csv(f'{temp_out.name}blast.txt', sep = '\t', header = None)
             output.columns = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send','evalue','bitscore']
@@ -791,7 +791,7 @@ class SeqClassifier:
 
         return out
 
-    def classify_seqfile(self, seq_file, recalc_species = True):
+    def classify_seqfile(self, seq_file):
         """Classifies the sequences in a FASTA format file
 
         This method will write results of classificaiton to specified
