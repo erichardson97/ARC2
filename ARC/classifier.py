@@ -773,7 +773,7 @@ class SeqClassifier:
                 print(f"{seq.description} has empty sequence. Skipping sequence.")
                 continue
             if self.check_seq(seq):
-                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq, recalc_species = self.recalc_species)
+                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq)
             else:
                 print(
                     f"{seq.description} contains invalid amino acid sequence. Skipping sequence."
