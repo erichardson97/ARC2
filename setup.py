@@ -9,8 +9,8 @@ class PostInstallCommand(install):
         install.run(self)
         print(f'Downloading and processing relevant IMGT and MRO data.')
         data = DataDownloader()
-        #data.download_MRO_tsv()
-        #data.download_IG_TR_databases()
+        data.download_MRO_tsv()
+        data.download_IG_TR_databases()
         for file in os.listdir(os.path.join(data.package_directory, 'data')):
             if os.path.exists(os.path.join(self.install_lib, 'ARC', 'data', file)):
                 if os.path.isdir(os.path.join(self.install_lib, 'ARC', 'data', file)):
@@ -23,7 +23,7 @@ class PostInstallCommand(install):
                 shutil.copytree(os.path.join(data.package_directory, 'data', file), os.path.join(self.install_lib, 'ARC', 'data', file))
             else:
                 shutil.copyfile(os.path.join(data.package_directory, 'data', file), os.path.join(self.install_lib, 'ARC', 'data', file))
-            print(file)
+        
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
