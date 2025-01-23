@@ -1,5 +1,5 @@
 import setuptools
-from ARC.download_data import *
+#from ARC.download_data import *
 from setuptools.command.install import install
 import shutil
 import os
@@ -41,8 +41,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     package_data={
         'ARC': [
-            'data/*', 'data/blastdb', 'data/HMMs', 'data/IgNAR',
-            'data/MHC_HMMs', 'tests/', 'muscle', 'data/imgt/', 'data/imgt/blast_fasta/'
+            'data/*', 'data/blastdb/*', 'data/HMMs/*', 'data/IgNAR/**',
+            'data/MHC_HMMs/*', 'tests/', 'muscle', 'data/imgt/**', 'data/imgt/blast_fasta/*'
         ]
     },
     include_package_data=True,
@@ -57,6 +57,4 @@ setuptools.setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: Unix",
-    ],
-    cmdclass={"install": PostInstallCommand, },
-    )
+    ])
