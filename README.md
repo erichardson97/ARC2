@@ -1,5 +1,5 @@
 # ARC2
-ARC with added species assignment either by BLAST (default; slow) or HMMER (significantly less accurate; fast).
+ARC with added species assignment either by  HMMER (significantly less accurate; default) or BLAST (slow). Add the -s flag for BLAST.
 
 ## Requirements
 
