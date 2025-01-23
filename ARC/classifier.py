@@ -814,21 +814,30 @@ class SeqClassifier:
                 results = pool.map(self.classify_multiproc, chunks)
                 out = pd.concat(results)
         if self.recalc_species:
+            print(f'Starting species reassignment on BCRs and TCRs.')
             ig_tr = out[out['class'].isin(set(['BCR', 'TCR']))]
             if ig_tr.shape[0] == 0:
+                print(f'No BCRs or TCRs detected.')
                 pass
             else:
                 ig_tr_sp = []
                 for locus, df in ig_tr.groupby('class'):
                     locus_name = 'IG' if locus == 'BCR' else 'TR'
                     ids = set(df['id'].unique())
+                    rename_records = {p: f'seq{i}' for i,p in enumerate(ids)}
+                    rename_records_rev = {rename_records[p]:p for p in rename_records}
                     with tempfile.NamedTemporaryFile(mode="w") as temp_out:
                         records = [p for p in seq_records if p.description in ids]
-                        SeqIO.write(records, temp_out.name, "fasta")
+                        new_records = []
+                        for record in records:
+                            record.id = rename_records[record.description]
+                            new_records.append(record)
+                        SeqIO.write(new_records, temp_out.name, "fasta")
                         species_reassignment = self.get_species_seqfile(seq_file = temp_out.name, locus = locus_name)
+                        species_reassignment['qseqid'] = species_reassignment['qseqid'].map(str).map(rename_records_rev)
                         ig_tr_sp.append(species_reassignment)
                 ig_tr_sp = pd.concat(ig_tr_sp)
-                ig_tr_sp['qseqid'] = ig_tr_sp['qseqid'].map(str)
+                print(f'Species reassignment complete.')
                 out = pd.merge(left = out.drop(['species', 'species_score'], axis = 1), right = ig_tr_sp[['qseqid', 'species', 'bitscore']].rename(columns = {'bitscore':'species_score'}),
                                left_on = 'id', right_on = 'qseqid', how = 'left').drop(['qseqid'], axis = 1)
         out.to_csv(self.outfile, sep="\t", index=False)
