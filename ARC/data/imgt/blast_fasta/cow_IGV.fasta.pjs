@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "cow_IGV.fasta",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "/home/ec2-user/ARC2/ARC/data/imgt/blast_fasta/cow_IGV.fasta",
+  "number-of-letters": 8560,
+  "number-of-sequences": 89,
+  "last-updated": "2025-01-23T04:35:00",
+  "number-of-volumes": 1,
+  "bytes-total": 66694,
+  "bytes-to-cache": 9514,
+  "files": [
+    "cow_IGV.fasta.pdb",
+    "cow_IGV.fasta.phr",
+    "cow_IGV.fasta.pin",
+    "cow_IGV.fasta.pog",
+    "cow_IGV.fasta.pos",
+    "cow_IGV.fasta.pot",
+    "cow_IGV.fasta.psq",
+    "cow_IGV.fasta.ptf",
+    "cow_IGV.fasta.pto"
+  ]
+}

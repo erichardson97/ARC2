@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "rabbit_IGV.fasta",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "/home/ec2-user/ARC2/ARC/data/imgt/blast_fasta/rabbit_IGV.fasta",
+  "number-of-letters": 14529,
+  "number-of-sequences": 148,
+  "last-updated": "2025-01-23T04:35:00",
+  "number-of-volumes": 1,
+  "bytes-total": 78450,
+  "bytes-to-cache": 16014,
+  "files": [
+    "rabbit_IGV.fasta.pdb",
+    "rabbit_IGV.fasta.phr",
+    "rabbit_IGV.fasta.pin",
+    "rabbit_IGV.fasta.pog",
+    "rabbit_IGV.fasta.pos",
+    "rabbit_IGV.fasta.pot",
+    "rabbit_IGV.fasta.psq",
+    "rabbit_IGV.fasta.ptf",
+    "rabbit_IGV.fasta.pto"
+  ]
+}
