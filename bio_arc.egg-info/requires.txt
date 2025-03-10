@@ -1,6 +1,0 @@
-pandas
-biopython
-numpy
-tqdm
-requests
-beautifulsoup4
