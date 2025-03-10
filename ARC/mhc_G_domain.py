@@ -41,6 +41,8 @@ class mhc_G_domain:
         self.max_out_seq = 10
         self.hit_coverage = 0.85
         self.rand = str(random.randint(0, 1000000))
+        self.package_dir = os.path.dirname(os.path.abspath(__file__))
+        self.blast_path = os.path.join(self.package_dir, 'bin', 'blastp')
 
     def run_blast(self, seqfile, db, blastout, qcov=None, e_val=None):
         """Runs Blast for the give sequence file against the given database
@@ -77,7 +79,7 @@ class mhc_G_domain:
             e_val = self.e_val
         if not qcov:
             args = [
-                "blastp",
+                self.blast_path,
                 "-query",
                 seqfile,
                 "-db",
@@ -93,7 +95,7 @@ class mhc_G_domain:
             ]
         else:
             args = [
-                "blastp",
+                self.blast_path,
                 "-query",
                 seqfile,
                 "-db",
