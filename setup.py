@@ -42,8 +42,8 @@ setuptools.setup(
     package_data={
         'ARC': [
             'data/*', 'data/blastdb/*', 'data/HMMs/*', 'data/IgNAR/**',
-            'data/MHC_HMMs/*', 'tests/', 'muscle', 'data/imgt/**', 'data/imgt/blast_fasta/*'
-        ]
+            'data/MHC_HMMs/*', 'tests/', 'muscle', 'data/imgt/**', 'data/imgt/blast_fasta/*',
+            'bin/*', 'bin/blastp']
     },
     include_package_data=True,
     install_requires=[

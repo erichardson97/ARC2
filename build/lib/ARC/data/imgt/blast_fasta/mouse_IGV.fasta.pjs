@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "mouse_IGV.fasta",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "/home/ec2-user/ARC2/ARC/data/imgt/blast_fasta/mouse_IGV.fasta",
+  "number-of-letters": 83039,
+  "number-of-sequences": 862,
+  "last-updated": "2025-01-23T04:35:00",
+  "number-of-volumes": 1,
+  "bytes-total": 243560,
+  "bytes-to-cache": 90950,
+  "files": [
+    "mouse_IGV.fasta.pdb",
+    "mouse_IGV.fasta.phr",
+    "mouse_IGV.fasta.pin",
+    "mouse_IGV.fasta.pog",
+    "mouse_IGV.fasta.pos",
+    "mouse_IGV.fasta.pot",
+    "mouse_IGV.fasta.psq",
+    "mouse_IGV.fasta.ptf",
+    "mouse_IGV.fasta.pto"
+  ]
+}

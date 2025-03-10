@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "human_IGV.fasta",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "/home/ec2-user/ARC2/ARC/data/imgt/blast_fasta/human_IGV.fasta",
+  "number-of-letters": 68735,
+  "number-of-sequences": 709,
+  "last-updated": "2025-01-23T04:35:00",
+  "number-of-volumes": 1,
+  "bytes-total": 209537,
+  "bytes-to-cache": 75269,
+  "files": [
+    "human_IGV.fasta.pdb",
+    "human_IGV.fasta.phr",
+    "human_IGV.fasta.pin",
+    "human_IGV.fasta.pog",
+    "human_IGV.fasta.pos",
+    "human_IGV.fasta.pot",
+    "human_IGV.fasta.psq",
+    "human_IGV.fasta.ptf",
+    "human_IGV.fasta.pto"
+  ]
+}

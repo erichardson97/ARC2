@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "mouse_TRV.fasta",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "/home/ec2-user/ARC2/ARC/data/imgt/blast_fasta/mouse_TRV.fasta",
+  "number-of-letters": 35526,
+  "number-of-sequences": 387,
+  "last-updated": "2025-01-23T04:35:00",
+  "number-of-volumes": 1,
+  "bytes-total": 135362,
+  "bytes-to-cache": 39162,
+  "files": [
+    "mouse_TRV.fasta.pdb",
+    "mouse_TRV.fasta.phr",
+    "mouse_TRV.fasta.pin",
+    "mouse_TRV.fasta.pog",
+    "mouse_TRV.fasta.pos",
+    "mouse_TRV.fasta.pot",
+    "mouse_TRV.fasta.psq",
+    "mouse_TRV.fasta.ptf",
+    "mouse_TRV.fasta.pto"
+  ]
+}

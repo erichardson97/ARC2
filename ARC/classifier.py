@@ -22,6 +22,7 @@ from Bio import SearchIO
 from Bio import SeqIO
 
 
+
 class SeqClassifier:
     """Classifies input sequence/s into BCR, TCR or MHC chains.
 
@@ -70,7 +71,7 @@ class SeqClassifier:
         else:
             self.hmmer_path = hmmer_path
         if blast_path == None:
-            self.blast_path = ""
+            self.blast_path = os.path.join(self.package_directory, 'bin/blastp')
         else:
             self.blast_path = blast_path
         self.blast_db_path = os.path.join(self.package_directory, 'data/imgt/blast_fasta')
@@ -126,7 +127,7 @@ class SeqClassifier:
                 return False
             SeqIO.write(seq_record, temp_out.name, "fasta")
             path = os.path.join(blast_path, f'{locus}V.fasta')
-            subprocess.call(f'blastp -query {temp_out.name} -db {path} -evalue 1e-6 -num_threads 4 -out {temp_out.name}blast.txt -outfmt 6', shell =
+            subprocess.call(f'{self.blast_path} -query {temp_out.name} -db {path} -evalue 1e-6 -num_threads 4 -out {temp_out.name}blast.txt -outfmt 6', shell =
                             True)
             if os.path.getsize(f'{temp_out.name}blast.txt') == 0:
                 top_species = {'species':'none', 'bitscore': 0}
@@ -140,7 +141,7 @@ class SeqClassifier:
     def get_species_seqfile(self, seq_file, locus = "IG"):
         db_path = os.path.join(self.blast_db_path, locus + "V.fasta")
         with tempfile.NamedTemporaryFile(mode="w") as temp_out:
-            subprocess.call(f'blastp -query {seq_file} -db {db_path} -evalue 1e-6 -num_threads 4 -out {temp_out.name} -outfmt 6', shell =
+            subprocess.call(f'{self.blast_path} -query {seq_file} -db {db_path} -evalue 1e-6 -num_threads 4 -out {temp_out.name} -outfmt 6', shell =
                             True)
             if os.path.getsize(temp_out.name) == 0:
                 top_species = {'species':'none', 'score': 0}
@@ -549,7 +550,7 @@ class SeqClassifier:
         Returns:
             True if sequence is b2m, False if sequence is not
         """
-        blast = self.blast_path + "blastp"
+        blast = self.blast_path
         hit_coverage = "75"
         hit_perc_id = 0.50
         with tempfile.NamedTemporaryFile(mode="w") as temp_in:
@@ -592,7 +593,7 @@ class SeqClassifier:
         Returns:
             True if sequence is IgNAR, False if sequence is not IgNAR
         """
-        blast = self.blast_path + "blastp"
+        blast = self.blast_path
         hit_coverage = "75"
         hit_perc_id = 0.50
         with tempfile.NamedTemporaryFile(mode="w") as temp_in:

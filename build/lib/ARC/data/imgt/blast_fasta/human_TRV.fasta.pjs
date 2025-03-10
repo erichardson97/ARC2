@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "human_TRV.fasta",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "/home/ec2-user/ARC2/ARC/data/imgt/blast_fasta/human_TRV.fasta",
+  "number-of-letters": 26501,
+  "number-of-sequences": 285,
+  "last-updated": "2025-01-23T04:35:00",
+  "number-of-volumes": 1,
+  "bytes-total": 111755,
+  "bytes-to-cache": 29219,
+  "files": [
+    "human_TRV.fasta.pdb",
+    "human_TRV.fasta.phr",
+    "human_TRV.fasta.pin",
+    "human_TRV.fasta.pog",
+    "human_TRV.fasta.pos",
+    "human_TRV.fasta.pot",
+    "human_TRV.fasta.psq",
+    "human_TRV.fasta.ptf",
+    "human_TRV.fasta.pto"
+  ]
+}
