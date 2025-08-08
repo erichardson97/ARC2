@@ -41,7 +41,7 @@ class FastaClassifier:
             self, seqfile=None, outfile=None, recalc_species=True, threads=1, hmmer_path=None, blast_path=None, hmm_path=None,
             speedy=True):
         # Relative paths and IO handling
-        self.package_directory = '/mnt/BioAdHoc/Users/erichard/ARC2/ARC/' #os.path.dirname(os.path.abspath(__file__))
+        self.package_directory = os.path.dirname(os.path.abspath(__file__))
         self.recalc_species = recalc_species
         self.seqfile = seqfile
         self.outfile = outfile
