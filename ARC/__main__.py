@@ -3,6 +3,7 @@ import sys
 
 # from ARC.build_pipeline import build //Currently deprecated
 from ARC.classifier import SeqClassifier
+from ARC.fasta_classifier import FastaClassifier
 
 tasks = ["classify"]
 if len(sys.argv) < 2 or (sys.argv[1] not in tasks):
@@ -28,6 +29,7 @@ elif sys.argv[1] == "classify":
     prsr = argparse.ArgumentParser(
         prog='classify', description='Classify protein sequences using HMMs')
     prsr.add_argument('-s', action=argparse.BooleanOptionalAction, default=False)
+    prsr.add_argument('-speedy', action=argparse.BooleanOptionalAction, default=False)
     prsr.add_argument(
         '-p',
         help="the number of threads to use (default=1)",
@@ -59,6 +61,16 @@ elif sys.argv[1] == "classify":
         type=str,
         metavar='blast_path',
         required=False)
+    prsr.add_argument(
+        '-mode',
+        help="Running mode",
+        type=str,
+        default='sequence',
+        required=False)
     args = prsr.parse_args(sys.argv[2:])
-    classifier = SeqClassifier(args.i, args.o, args.s, args.p, args.hmmer, args.blast)
-    classifier.classify_seqfile(args.i)
+    if args.mode == 'sequence':
+        classifier = SeqClassifier(args.i, args.o, args.s, args.p, args.hmmer, args.blast, speedy=args.speedy)
+        classifier.classify_seqfile(args.i)
+    else:
+        classifier = FastaClassifier(args.i, args.o, args.s, args.p, args.hmmer, args.blast, speedy=args.speedy)
+        classifier.classify_seqfile(args.i)
