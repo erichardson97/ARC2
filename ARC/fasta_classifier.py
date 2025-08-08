@@ -19,10 +19,11 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SearchIO
 from Bio import SeqIO
+from io import StringIO
 
 
 
-class SeqClassifier:
+class FastaClassifier:
     """Classifies input sequence/s into BCR, TCR or MHC chains.
 
     Attributes:
@@ -81,16 +82,10 @@ class SeqClassifier:
         self.speedy = speedy
 
     def is_aa(self, seq_record):
-        """Checks validity of an amino acid sequence
-
-        Args:
-            seq_record: A biopython sequence record object
-        """
         characters = set(str(seq_record.seq))
-        if len(characters.intersection(set(['A','C', 'G', 'T', 'U']))) == len(characters):
+        if len(characters.intersection(set(['U', 'C', 'A', 'G', 'T']))) == len(characters):
             return False
-        else:
-            return True
+        return True
 
     def check_seq(self, seq_record):
         """Checks validity of an amino acid sequence
@@ -105,8 +100,6 @@ class SeqClassifier:
             return True
         else:
             return False
-
-
 
     def run_cmd(self, cmd, input_string=""):
         """Runs a command using subprocess
@@ -173,7 +166,7 @@ class SeqClassifier:
             top_species = output.groupby('qseqid').apply(lambda x: x.loc[x['bitscore'].idxmax()], include_groups=False).reset_index()
             return top_species
 
-    def run_hmmscan(self, seq_record, hmm_out):
+    def run_hmmscan(self, seq_records, hmm_out):
         """Runs hmmscan from the HMMER3 software suite
 
         Args:
@@ -182,9 +175,8 @@ class SeqClassifier:
             hmm_out: tempfile object for hmm output
         """
         with tempfile.NamedTemporaryFile(mode="w") as temp_out:
-            if not seq_record.seq:
-                return False
-            SeqIO.write(seq_record, temp_out.name, "fasta")
+            SeqIO.write([p for p in seq_records if self.check_seq(p)], temp_out.name, "fasta")
+            temp_out.flush()
             hmmer = self.hmmer_path + "hmmscan"
             args = [
                 hmmer,
@@ -194,8 +186,7 @@ class SeqClassifier:
                 temp_out.name,
             ]
             cmd = (" ").join(args)
-            self.run_cmd(cmd, str(seq_record.seq))
-
+            self.run_cmd(cmd)
             if not (os.path.exists(hmm_out.name) and os.access(hmm_out.name, os.R_OK)):
                 return False
             if os.path.getsize(hmm_out.name) == 0:
@@ -303,9 +294,10 @@ class SeqClassifier:
         # If any significant hits were identified parse and align them to the reference state.
         for i in range(ndomains):
             domains[i].order = i
-            species, chain = top_descriptions[i]["id"].split("_")
-            top_descriptions[i]["species"] = species  # Reparse
-            top_descriptions[i]["chain_type"] = chain
+            if top_descriptions[i]["id"].count("_") == 1:
+                species, chain = top_descriptions[i]["id"].split("_")
+                top_descriptions[i]["species"] = species  # Reparse
+                top_descriptions[i]["chain_type"] = chain
 
         return hit_table, top_descriptions
 
@@ -515,10 +507,10 @@ class SeqClassifier:
             )
             return mro_allele
         else:
-            print("Unable to assign G domain to the {} chain sequence".format(seq_id))
+            print("[INFO] Unable to assign G domain to the {} chain sequence".format(seq_id))
             return
 
-    def is_MHC(self, sequence, hmm):
+    def is_MHC(self, sequence_records, hmm):
         """Checks if sequence is MHC using HMMER
 
         Args:
@@ -529,36 +521,28 @@ class SeqClassifier:
         Returns:
             score: The bit score for sequence query against provided HMM
         """
-        score = 0
         # create a temporary file
-        fp = tempfile.NamedTemporaryFile(mode="w")
-        fp.write(">seq\n")
-        fp.write("{}".format(sequence))
-        fp.flush()
-
-        # Find MHC sequences
-        hmmer = self.hmmer_path + "hmmscan"
-        args = [hmmer, hmm, fp.name]
-        cmd = " ".join(args)
-        output = self.run_cmd(cmd)
-        aln = [line.split() for line in output.splitlines()]
-        # Search for score to see if there is a match
-        for i, line in enumerate(aln):
-            if line[0:3] == ["E-value", "score", "bias"] and aln[i + 2]:
-                try:
-                    # E_value = float(aln[i+2][0])
-                    score = float(aln[i + 2][1])
-                    break
-                except ValueError:
-                    # E_value = float(aln[i+3][0])
-                    score = float(aln[i + 3][1])
-                    break
-
+        with tempfile.NamedTemporaryFile(mode="w") as fp:
+            SeqIO.write(sequence_records, fp, format='fasta')
+            fp.flush()
+            # Find MHC sequences
+            hmmer = self.hmmer_path + "hmmscan"
+            args = [hmmer, hmm, fp.name]
+            cmd = " ".join(args)
+            output = self.run_cmd(cmd)
+            max_scores = {}
+            for hmmer_query in SearchIO.parse(StringIO(output), 'hmmer3-text'):
+                headers, values = self.parse_hmmer_query(hmmer_query)
+                max_score = 0
+                for hit in values:
+                    if hit['bitscore'] >= max_score:
+                        max_score = hit['bitscore']
+                max_scores[hmmer_query.id] = max_score
         # close the file. When the file is closed it will be removed.
         fp.close()
-        return score
+        return max_scores
 
-    def is_b2m(self, sequence):
+    def is_b2m(self, sequence_records):
         """Checks if sequence is b2m
         Uses BLAST as method rather than HMMER
 
@@ -568,12 +552,14 @@ class SeqClassifier:
         Returns:
             True if sequence is b2m, False if sequence is not
         """
+        print(f'[INFO] B2M check (BLASTP).')
         blast = self.blast_path
         hit_coverage = "75"
         hit_perc_id = 0.50
+        b2m_set = set()
         with tempfile.NamedTemporaryFile(mode="w") as temp_in:
             with tempfile.NamedTemporaryFile(mode="r") as outfile:
-                SeqIO.write(sequence, temp_in.name, "fasta")
+                SeqIO.write(sequence_records, temp_in.name, "fasta")
                 blast_cmd = [
                     blast,
                     "-db",
@@ -590,18 +576,20 @@ class SeqClassifier:
                     outfile.name,
                 ]
                 self.run_cmd((" ".join(blast_cmd)))
-                res = NCBIXML.read(outfile).alignments
-                for alignment in res:
-                    for hsp in alignment.hsps:
-                        if (
-                                float(hsp.identities) / float(hsp.align_length)
-                                > hit_perc_id
-                        ):
-                            return True
-                return False
+                rec = NCBIXML.parse(outfile)
+                for res in rec:
+                    for alignment in res.alignments:
+                        for hsp in alignment.hsps:
+        
+                            if (
+                                    float(hsp.identities) / float(hsp.align_length)
+                                    > hit_perc_id
+                            ):
+                                b2m_set.add(res.query)
+        return b2m_set
 
 
-    def is_b2m_speedy(self, sequence):
+    def is_b2m_speedy(self, sequence_records):
         """Checks if sequence is b2m
         Uses MMseqs rather than BLAST
 
@@ -611,7 +599,7 @@ class SeqClassifier:
         Returns:
             True if sequence is b2m, False if sequence is not
         """
-        print(f'Running b2m speedy mode.')
+        print(f'[INFO] B2M check (speedy).')
         mmseqs = self.mmseqs_path
         hit_coverage = "0.75"
         hit_perc_id = 0.50
@@ -622,7 +610,7 @@ class SeqClassifier:
         with tempfile.NamedTemporaryFile(mode="w") as temp_in:
             with tempfile.NamedTemporaryFile(mode="r") as outfile:
                 with tempfile.TemporaryDirectory() as temp_dir:
-                    SeqIO.write(sequence, temp_in.name, "fasta")
+                    SeqIO.write(sequence_records, temp_in.name, "fasta")
                     mmseqs_cmd = [mmseqs,
                                 'easy-search',
                                 temp_in.name,
@@ -638,9 +626,7 @@ class SeqClassifier:
                                 ]
                     self.run_cmd((" ".join(mmseqs_cmd)))
                     res = pd.read_csv(outfile.name, sep='\t', names=mmseqs_columns)
-                    if res[res['pident']>= hit_perc_id].shape[0] > 0:
-                        return True
-                    return False
+                    return set(res[res['pident']>= hit_perc_id]['qseqid'].unique())
 
     def is_ignar_speedy(self, sequence):
         """Checks if sequence is shark antibody (IgNAR)
@@ -653,7 +639,7 @@ class SeqClassifier:
         Returns:
             True if sequence is IgNAR, False if sequence is not IgNAR
         """
-        print(f'Running mmseqs.')
+        print(f'[INFO] IgNAR check (speedy).')
         mmseqs = self.mmseqs_path
         hit_coverage = "0.75"
         hit_perc_id = 0.5
@@ -680,11 +666,9 @@ class SeqClassifier:
                                 ]
                     self.run_cmd((" ".join(mmseqs_cmd)))
                     res = pd.read_csv(outfile.name, sep='\t', names=mmseqs_columns)
-                    if res[res['pident']>= hit_perc_id].shape[0] > 0:
-                        return True
-                    return False
+                    return set(res[res['pident']>= hit_perc_id]['qseqid'].unique())
             
-    def is_ignar(self, sequence):
+    def is_ignar(self, sequence_records):
         """Checks if sequence is shark antibody (IgNAR)
 
         Uses BLAST as method rather than HMMER due to lack of sequences
@@ -695,12 +679,14 @@ class SeqClassifier:
         Returns:
             True if sequence is IgNAR, False if sequence is not IgNAR
         """
+        print(f'[INFO] IgNAR check (BLASTP).')
         blast = self.blast_path
         hit_coverage = "0.75"
         hit_perc_id = 0.5
+        ignar_set = set()
         with tempfile.NamedTemporaryFile(mode="w") as temp_in:
             with tempfile.NamedTemporaryFile(mode="r") as outfile:
-                SeqIO.write(sequence, temp_in.name, "fasta")
+                SeqIO.write(sequence_records, temp_in.name, "fasta")
                 blast_cmd = [
                     blast,
                     "-db",
@@ -717,17 +703,18 @@ class SeqClassifier:
                     outfile.name,
                 ]
                 self.run_cmd((" ".join(blast_cmd)))
-                res = NCBIXML.read(outfile).alignments
-                for alignment in res:
-                    for hsp in alignment.hsps:
-                        if (
-                                float(hsp.identities) / float(hsp.align_length)
-                                > hit_perc_id
-                        ):
-                            return True
-                return False
+                res = NCBIXML.parse(outfile)
+                for record in res:
+                    for alignment in record.alignments:
+                        for hsp in alignment.hsps:
+                            if (
+                                    float(hsp.identities) / float(hsp.align_length)
+                                    > hit_perc_id
+                            ):
+                                ignar_set.add(record.query)
+        return ignar_set
 
-    def assign_class(self, seq_record, bit_score_threshold=100, speedy=True):
+    def assign_class(self, seq_records, bit_score_threshold=100):
         """Classifies sequence as BCR, TCR, or MHC
 
         Args:
@@ -736,169 +723,88 @@ class SeqClassifier:
         Returns:
             The receptor and chain type of input sequence, if available
         """
+        seq_records = [p for p in seq_records if self.check_seq(p)]
+        if len(seq_records) == 0:
+            return {}
+    
+        print(f"[INFO] Running receptor scan.")
         with tempfile.NamedTemporaryFile(mode="w") as hmm_out:
-            receptor, chain_type = None, None
-            self.run_hmmscan(seq_record, hmm_out)
-            hmmer_query = SearchIO.read(hmm_out.name, "hmmer3-text")
-            hit_table, top_descriptions = self.parse_hmmer_query(hmmer_query, bit_score_threshold=bit_score_threshold)
-            try:
-                score = int(hit_table[1][3] - 100)
-            except:
-                score = int(0 - 100)
-            receptor, chain_type, species = self.get_chain_type(top_descriptions)
+            self.run_hmmscan(seq_records, hmm_out)
+            hmmer_results = SearchIO.parse(hmm_out.name, "hmmer3-text")
+            output_table = {}
+            for hmmer_query in hmmer_results:
+                hit_table, top_descriptions = self.parse_hmmer_query(hmmer_query, bit_score_threshold=bit_score_threshold)
+                try:
+                    score = int(hit_table[1][3] - 100)
+                except:
+                    score = int(0 - 100)
+                receptor, chain_type, species = self.get_chain_type(top_descriptions)
+                output_table[hmmer_query.id] = (receptor, chain_type, score, species)
 
-            # We have no hits so now we check for MHC and IgNAR
-            # This avoids excessive computations
-            if not receptor or not chain_type:
-                if speedy:
-                    if self.is_b2m_speedy(seq_record):
-                        return ("B2M", "-", 0, '')
-                    if self.is_ignar_speedy(seq_record):
-                        return ("BCR", "IgNAR", 0, '')
-                else:
-                    if self.is_b2m(seq_record):
-                        return ("B2M", "-", 0, '')
-                    if self.is_ignar(seq_record):
-                        return ("BCR", "IgNAR", 0, '')
-                mhc_I_score = None
-                mhc_I_score = self.is_MHC(str(seq_record.seq), self.mhc_I_hmm)
-                if mhc_I_score >= self.hmm_score_threshold:
-                    return (
-                        "MHC-I",
-                        "alpha",
-                        int(mhc_I_score - self.hmm_score_threshold),
-                        ''
-                    )
-                else:
-                    mhc_II_alpha_score = None
-                    mhc_II_alpha_score = self.is_MHC(
-                        str(seq_record.seq), self.mhc_II_alpha_hmm
-                    )
-                    if (
-                            mhc_II_alpha_score
-                            and mhc_II_alpha_score >= self.hmm_score_threshold
-                    ):
-                        return (
-                            "MHC-II",
-                            "alpha",
-                            mhc_II_alpha_score - self.hmm_score_threshold,
+        non_receptor = [p for p in seq_records if output_table[p.description][0] is None or output_table[p.description][1] is None]
+
+
+        if len(non_receptor) != 0:
+            if self.speedy:
+                b2m_results = self.is_b2m_speedy(non_receptor)
+                output_table.update({p.description: ("B2M", "-", 0, '') for p in non_receptor if p.description in b2m_results})
+                ignar_results = self.is_ignar_speedy(non_receptor)
+                output_table.update({p.description: ("BCR", "IgNAR", 0, '') for p in non_receptor if p.description in ignar_results})
+            else:
+                b2m_results = self.is_b2m(non_receptor)
+                output_table.update({p.description: ("B2M", "-", 0, '') for p in non_receptor if p.description in b2m_results})
+                ignar_results = self.is_ignar(non_receptor)
+                output_table.update({p.description: ("BCR", "IgNAR", 0, '') for p in non_receptor if p.description in ignar_results})
+
+
+        print(f"[INFO] Running MHC scan.")
+        possible_mhc = [p for p in seq_records if output_table[p.description][0] is None or output_table[p.description][1] is None]
+        if len(possible_mhc) == 0:
+            return output_table
+        
+        mhc_I_score = None
+        mhc_I_score = self.is_MHC(possible_mhc, self.mhc_I_hmm)
+    
+        output_table.update({p.description: ('MHC-I', 'alpha', mhc_I_score[p.description] - self.hmm_score_threshold, '') for p in possible_mhc if mhc_I_score[p.description] >= self.hmm_score_threshold})
+
+        possible_mhc = [p for p in seq_records if output_table[p.description][0] is None or output_table[p.description][1] is None]
+        if len(possible_mhc) == 0:
+            return output_table
+
+        mhc_II_alpha_score = self.is_MHC(possible_mhc, self.mhc_II_alpha_hmm)
+        output_table.update({p.description: ('MHC-II', 'alpha', mhc_II_alpha_score[p.description] - self.hmm_score_threshold, '') for p in possible_mhc if mhc_II_alpha_score[p.description] >= self.hmm_score_threshold})
+
+        possible_mhc = [p for p in seq_records if output_table[p.description][0] is None or output_table[p.description][1] is None]
+
+        if len(possible_mhc) == 0:
+            return output_table
+        
+        mhc_II_beta_score = self.is_MHC(possible_mhc, self.mhc_II_beta_hmm)
+        output_table.update({p.description: ('MHC-II', 'beta', mhc_II_beta_score[p.description] - self.hmm_score_threshold, '') for p in possible_mhc if mhc_II_beta_score[p.description] >= self.hmm_score_threshold})
+
+        possible_mhc = [p for p in seq_records if output_table[p.description][0] is None or output_table[p.description][1] is None]
+        
+        if len(possible_mhc) == 0:
+            return output_table
+        
+        for p in possible_mhc:
+            if mhc_II_alpha_score[p.description] == 0 and mhc_II_beta_score[p.description] == 0:
+                output_table[p.description] = (None, None, score, '')
+            elif mhc_II_alpha_score[p.description] >= mhc_II_beta_score[p.description]:
+                output_table[p.description] =  (
+                            None,
+                            None,
+                            int(mhc_II_alpha_score[p.description] - self.hmm_score_threshold),
                             ''
                         )
-                    else:
-                        mhc_II_beta_score = None
-                        mhc_II_beta_score = self.is_MHC(
-                            str(seq_record.seq), self.mhc_II_beta_hmm
+            else:
+                output_table[p.description] = (
+                            None,
+                            None,
+                            int(mhc_II_beta_score[p.description] - self.hmm_score_threshold),
+                            ''
                         )
-                        if (
-                                mhc_II_beta_score
-                                and mhc_II_beta_score >= self.hmm_score_threshold
-                        ):
-                            return (
-                                "MHC-II",
-                                "beta",
-                                int(mhc_II_beta_score - self.hmm_score_threshold),
-                                ''
-                            )
-                        else:
-                            if mhc_II_alpha_score == 0 and mhc_II_beta_score == 0:
-                                return (None, None, score, '')
-                            if mhc_II_alpha_score >= mhc_II_beta_score:
-                                return (
-                                    None,
-                                    None,
-                                    int(mhc_II_alpha_score - self.hmm_score_threshold),
-                                    ''
-                                )
-                            else:
-                                return (
-                                    None,
-                                    None,
-                                    int(mhc_II_beta_score - self.hmm_score_threshold),
-                                    ''
-                                )
-            else:
-                if score < 0:
-                    score = 0
-
-                return (receptor, chain_type, score, species)
-
-    def gen_classify(self, seq, seq_id):
-        """Returns BCR, TCR, or MHC class and chain type for input sequence without needing
-        Biopython FASTA sequence object
-
-        Args:
-            seq: string containing protein sequence of interest
-
-            seq_id: id of sequence (> in FASTA)
-
-        Returns:
-            Receptor, chain type, and calculated MHC allele if applicable
-        """
-        seq_record = SeqRecord(Seq(seq), id=seq_id)
-        g_domain = ""
-        calc_mhc_allele = ""
-        receptor, chain_type, score, species = self.assign_class(seq_record, speedy=self.speedy)
-        if receptor == "MHC-I" or receptor == "MHC-II":
-            g_domain = self.assign_Gdomain(str(seq_record.seq), seq_record.id)
-            calc_mhc_allele = self.get_MRO_allele(
-                self.mro_df, str(seq_record.seq), str(seq_record.description)
-            )
-        return receptor, chain_type, calc_mhc_allele, species
-
-    def classify(self, seq_record, bit_score_threshold=100):
-        """Returns BCR, TCR or MHC class and chain type for an input sequence.
-
-        If sequence is MHC, finds its g-domain and returns its corresponding
-        allele
-
-        Args:
-            seq_record: a biopython sequence record object
-
-        Returns:
-            The receptor, chain type, and calculated MHC allele, if applicable
-        """
-        g_domain = ""
-        calc_mhc_allele = ""
-        receptor, chain_type, score, species = self.assign_class(seq_record, bit_score_threshold=bit_score_threshold, speedy=self.speedy)
-        species_score = score
-        if receptor == "MHC-I" or receptor == "MHC-II":
-            g_domain = self.assign_Gdomain(str(seq_record.seq), seq_record.id)
-            calc_mhc_allele = self.get_MRO_allele(
-                self.mro_df, str(seq_record.seq), str(seq_record.description)
-            )
-        else:
-            if self.recalc_species:
-                locus = 'IG' if receptor == 'BCR' else 'TR'
-                new_species = self.get_species(seq_record, locus = locus)
-                species = new_species['species']
-                species_score = new_species['bitscore']
-        return receptor, chain_type, calc_mhc_allele, score, species, species_score
-
-    def classify_multiproc(self, seq_list):
-        out = pd.DataFrame(columns=["id", "class", "chain_type", "calc_mhc_allele", "species", "species_score"])
-        cnt = 0
-        for seq in seq_list:
-            if seq.seq == "":
-                print(f"{seq.description} has empty sequence. Skipping sequence.")
-                continue
-            if self.check_seq(seq):
-                receptor, chain_type, calc_mhc_allele, score, species, species_score = self.classify(seq)
-            else:
-                print(
-                    f"{seq.description} contains invalid amino acid sequence. Skipping sequence."
-                )
-                continue
-
-            out.loc[cnt, "id"] = seq.description
-            out.loc[cnt, "class"] = receptor
-            out.loc[cnt, "chain_type"] = chain_type
-            out.loc[cnt, "calc_mhc_allele"] = calc_mhc_allele
-            out.loc[cnt, "score"] = score
-            out.loc[cnt, "species"] = species
-            out.loc[cnt, "species_score"] = species_score
-            cnt += 1
-
-        return out
+        return output_table
 
     def classify_seqfile(self, seq_file):
         """Classifies the sequences in a FASTA format file
@@ -909,24 +815,37 @@ class SeqClassifier:
         Args:
             seq_file: the name of a FASTA file of sequences
         """
+        print(f'[INFO] Reading {seq_file}.')
         seq_records = list(SeqIO.parse(seq_file, "fasta"))
-        if len(seq_records) == 1:
-            out = self.classify_multiproc(seq_records)
-        else:
-            num_records = len(seq_records)
-            records_per_thread = max(num_records // self.num_threads, 1)  # ensure at least 1 record per thread
-
-            # Create chunks of sequences to be processed by each thread
-            chunks = [seq_records[i:i + records_per_thread] for i in range(0, num_records, records_per_thread)]
-            with mp.Pool(processes=self.num_threads) as pool:
-                # Use the map function to distribute the workload
-                results = pool.map(self.classify_multiproc, chunks)
-                out = pd.concat(results)
+        print(f'[INFO] Removing redundancy for speed.')
+        inputs_unique = {}
+        for p in seq_records:
+            if p.seq not in inputs_unique:
+                inputs_unique[p.seq] = []
+            inputs_unique[p.seq].append(p)
+        inputs_unique_records = [SeqRecord(description=f'seq{i}', seq=Seq(p), id=f'seq{i}') for i,p in enumerate(inputs_unique)]
+        inputs_unique_records_mapping = {p.description: p for p in inputs_unique_records}
+        rev_mapping = {p.description: inputs_unique[p.seq] for p in inputs_unique_records}
+        output = pd.DataFrame(self.assign_class(inputs_unique_records)).T
+        if output.shape[0] == 0:
+            output = pd.DataFrame({p.description: {'class': None, 'chain_type': None, 'score': -100, 'species': np.nan, 'species_score':np.nan, 'calc_mhc_allele':np.nan}
+                                 for p in seq_records}).T.reset_index().rename(columns={'index':'id'})
+            output.to_csv(self.outfile, sep="\t", index=False)
+            return output
+        output.columns = ['class', 'chain_type', 'score', 'species']
+        output = output.reset_index().rename(columns={'index':'id'})
+        for k ,p in output.iterrows():
+            if "MHC" in str(p['class']):
+                seq_record = inputs_unique_records_mapping[p.id]
+                calc_mhc_allele = self.get_MRO_allele(
+                        self.mro_df, str(seq_record.seq), str(seq_record.description)
+                    )
+                output.at[k, 'calc_mhc_allele'] = calc_mhc_allele
         if self.recalc_species:
-            print(f'Starting species reassignment on BCRs and TCRs.')
-            ig_tr = out[out['class'].isin(set(['BCR', 'TCR']))]
+            print(f'[INFO] Starting species reassignment on BCRs and TCRs.')
+            ig_tr = output[output['class'].isin(set(['BCR', 'TCR']))]
             if ig_tr.shape[0] == 0:
-                print(f'No BCRs or TCRs detected.')
+                print(f'[INFO] No BCRs or TCRs detected.')
                 pass
             else:
                 ig_tr_sp = []
@@ -936,7 +855,7 @@ class SeqClassifier:
                     rename_records = {p: f'seq{i}' for i,p in enumerate(ids)}
                     rename_records_rev = {rename_records[p]:p for p in rename_records}
                     with tempfile.NamedTemporaryFile(mode="w") as temp_out:
-                        records = [p for p in seq_records if p.description in ids]
+                        records = [inputs_unique_records_mapping[p] for p in ids]
                         new_records = []
                         for record in records:
                             record.id = rename_records[record.description]
@@ -946,7 +865,29 @@ class SeqClassifier:
                         species_reassignment['qseqid'] = species_reassignment['qseqid'].map(str).map(rename_records_rev)
                         ig_tr_sp.append(species_reassignment)
                 ig_tr_sp = pd.concat(ig_tr_sp)
-                print(f'Species reassignment complete.')
-                out = pd.merge(left = out.drop(['species', 'species_score'], axis = 1), right = ig_tr_sp[['qseqid', 'species', 'bitscore']].rename(columns = {'bitscore':'species_score'}),
+                print(f'[INFO] Species reassignment complete.')
+                output = pd.merge(left = output.drop(['species'], axis = 1), right = ig_tr_sp[['qseqid', 'species', 'bitscore']].rename(columns = {'bitscore':'species_score'}),
                                left_on = 'id', right_on = 'qseqid', how = 'left').drop(['qseqid'], axis = 1)
-        out.to_csv(self.outfile, sep="\t", index=False)
+        if 'species_score' not in output.columns:
+            output['species_score'] = np.nan
+        if 'calc_mhc_allele' not in output.columns:
+            output['calc_mhc_allele'] = np.nan
+        order = ['id','class','chain_type','score','calc_mhc_allele','species','species_score']
+        output_remapped = []
+        for entry in rev_mapping:
+            subset = output[output['id'] == entry][order]
+            if subset.shape[0] == 0:
+                for map in rev_mapping[entry]:
+                    add = [map.description, None, None, None, None, None, None]
+                    output_remapped.append(add)
+            else:
+                subset = subset.iloc[0].values
+                for map in rev_mapping[entry]:
+                    if subset.shape[0] != 0:
+                        add =[ map.description] + list(subset[1:])
+                    else:
+                        add = [map.description, None, None, None, None, None, None, None]
+                    output_remapped.append(add)
+        output_remapped = pd.DataFrame(output_remapped, columns=['id','class','chain_type','score','calc_mhc_allele','species','species_score'])
+        output_remapped.to_csv(self.outfile, sep="\t", index=False)
+        return output_remapped
